@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TikaOnDotNet.TextExtraction;
 
 namespace WebSpy
 {
@@ -32,6 +33,7 @@ namespace WebSpy
             documentRank = new Dictionary<string, Dictionary<string, double>>();
             documents = new HashSet<string>();
             CompTF_IDF(query);
+            
         }
 
         public List<KeyValuePair<String, double>> Rank()
