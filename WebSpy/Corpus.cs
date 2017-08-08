@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace WebSpy
 {
-    class Corpus
+    public class Corpus
     {
-        internal static Dictionary<String, Dictionary<String, int>> GetTermFrequencies()
+        public static Dictionary<String, Dictionary<String, int>> GetTermFrequencies()
         {
             var a = new Dictionary<String, Dictionary<String, int>>();
             a["the"] = new Dictionary<string, int>();
@@ -48,17 +48,17 @@ namespace WebSpy
             return a;
         }
 
-        internal static HashSet<String> getDocuments()
+        public static HashSet<String> getDocuments()
         {
             return new HashSet<String>(new[] { "1", "2", "3", "4" });
         }
 
-        internal static Dictionary<string, int> getDocuments(String term)
+        public static Dictionary<string, int> getDocuments(String term)
         {
             return GetTermFrequencies()[term];
         }
 
-        internal static int getDocumentLength(string key)
+        public static int getDocumentLength(string key)
         {
             switch (key){
                 case "1":
@@ -75,7 +75,7 @@ namespace WebSpy
             }
         }
 
-        internal static int getNoDocuments()
+        public static int getNoDocuments()
         {
             return 3;
         }
