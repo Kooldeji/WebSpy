@@ -56,6 +56,7 @@ namespace WebSpy
         public static Dictionary<string, int> getDocuments(String term)
         {
             return GetTermFrequencies()[term];
+            
         }
 
         public static int getDocumentLength(string key)

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 
 namespace WebSpy
 {
@@ -8,17 +7,9 @@ namespace WebSpy
     {
         public void generateToken(string s)
         {
+            var newString = s.ToLower();  //Convert all characters i the string to lower case
+            string[] words = newString.Split(' '); //Add all words in the string to  array 
 
-            string editString = s;
-            var regexItem = new Regex("[^a-zA-Z0-9_']+"); //create a regex object
-            if (regexItem.IsMatch(s[s.Length - 1].ToString()))
-            {
-                editString = s.Remove(s.Length - 1);
-            }
-            string newString = Regex.Replace(editString, "[^a-zA-Z0-9_']+", " "); //Replace characterds with space
-
-            newString = newString.ToLower();  //Convert all characters i the string to lower case
-            string[] words = newString.Split(' '); //Add all words in the string to  array
             Dictionary<string, int> dict = new Dictionary<string, int>();  //Create a dictionary to save the number of occurece of every word in the array
             for (int i = 0; i < words.Length - 1; i++)
             {
