@@ -26,7 +26,7 @@ namespace WebSpy
             //Print the dictionary
             foreach (KeyValuePair<string, int> item in dict)
             {
-                Console.WriteLine("Key: {0} Value: {1}", item.Key, item.Value);
+                Console.WriteLine("Key:\t {0} Value: {1}", item.Key, item.Value);
             }
             Console.ReadKey();
         }

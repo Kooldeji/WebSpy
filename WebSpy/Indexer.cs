@@ -6,11 +6,12 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
+
 namespace WebSpy
 {
-    class Indexer : Tokenizer
+    class Indexer
     {
-        public static void generateString(string path)
+        public void GenerateString(string path)
         {
             string filePath = path;
             var text = "";
@@ -32,7 +33,7 @@ namespace WebSpy
             for (int i = 0; i<words.Length; i++)
             {
                 var stem = stemmer.StemWord(words[i]);
-                stemmedText += stem + " ";      //Append all stemmed words into a string that will be tokenizer
+                stemmedText += stem + " ";      //Append all stemmed words into a string that will be tokenized
             }
 
             var tok = new Tokenizer();  //Call the tokenizer class
