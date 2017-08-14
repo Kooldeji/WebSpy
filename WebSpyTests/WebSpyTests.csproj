@@ -171,17 +171,18 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="CorpusTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RankerTests.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\WebSpy\WebSpy.csproj">
-      <Project>{57250658-00C2-45BA-878E-B642BB8A01CE}</Project>
-      <Name>WebSpy</Name>
-    </ProjectReference>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
+    <ProjectReference Include="..\WebSpy\WebSpy.csproj">
+      <Project>{57250658-00c2-45ba-878e-b642bb8a01ce}</Project>
+      <Name>WebSpy</Name>
+    </ProjectReference>
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">

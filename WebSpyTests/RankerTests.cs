@@ -19,7 +19,7 @@ namespace WebSpy.Tests
             var query = new Dictionary<string, int>();
             query["life"] = 1;
             query["learning"] = 1;
-            ranker = new Ranker(query);
+            //ranker = new Ranker(query);
 
             //Example of how to use the streamer
             //Take this Code portion and put it where u want to put it.
@@ -66,14 +66,11 @@ namespace WebSpy.Tests
         }
 
         [TestMethod()]
-        public void getRankTest1()
+        public void getRankTest2()
         {
-            var query = new Dictionary<string, int>();
-            query["life"] = 1;
-            query["learning"] = 1;
-            ranker = new Ranker(query);
+            var ranker = Ranker.init();
             List<KeyValuePair<String, double>> ranks = ranker.Rank();
-            Console.WriteLine(ranks);
+            Console.WriteLine(ranks.Count);
             foreach (var item in ranks)
             {
                 Console.WriteLine(item);

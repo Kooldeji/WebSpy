@@ -177,11 +177,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Corpus.cs" />
+    <Compile Include="Crawler.cs" />
     <Compile Include="Ranker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Stemmer.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ClassDiagram1.cd" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>

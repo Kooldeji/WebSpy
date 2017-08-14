@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MongoDB.Driver;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,28 +11,33 @@ namespace WebSpy
     public class Ranker
     {
         /// <summary>
+        /// An instance of the corpus.
+        /// </summary>
+        private Corpus _corpus;
+        /// <summary>
         /// The documents that have any of the query terms
         /// </summary>
-        private HashSet<String> documents;
+        private HashSet<String> _documents;
         /// <summary>
         /// An inverted index of terms mapped to a mapping of each document mapped to 
         /// the term's TF_IDF rank.
         /// </summary>
-        private Dictionary<String, Dictionary<String, double>> documentRank;
+        private Dictionary<String, Dictionary<String, double>> _documentRank;
         /// <summary>
         /// The query document containing each term mapped it's TF_IDF rank.
         /// </summary>
-        private Dictionary<String, double> query;
+        private Dictionary<String, double> _query;
         /// <summary>
         /// Initializes a new instance of the <see cref="Ranker"/> class.
         /// </summary>
         /// <param name="query">A mapping of each query term to the frequency in the query document.</param>
-        public Ranker( Dictionary<String, int> query)
+        public Ranker(Corpus corpus, Dictionary<String, int> query)
         {
-            if (query == null) throw new ArgumentNullException();
-            this.query = new Dictionary<string, double>();
-            documentRank = new Dictionary<string, Dictionary<string, double>>();
-            documents = new HashSet<string>();
+            if (query == null || corpus == null) throw new ArgumentNullException();
+            this._query = new Dictionary<string, double>();
+            _corpus = corpus;
+            _documentRank = new Dictionary<string, Dictionary<string, double>>();
+            _documents = new HashSet<string>();
             CompTF_IDF(query);
             
         }
@@ -43,7 +49,7 @@ namespace WebSpy
 
             //Iterates through the documents and inserts it into the right index according to 
             //descending cosine similarity.
-            foreach (String id in documents)
+            foreach (String id in _documents)
             {
                 var inserted = false;
                 var value = CosineSimilarity(id);
@@ -73,17 +79,17 @@ namespace WebSpy
 
             foreach (KeyValuePair<String, int> term in query)
             {
-                IDictionary<String, int> documents = Corpus.getDocuments(term.Key);
-                this.documents.UnionWith(documents.Keys);
+                IDictionary<String, int> documents =  _corpus.getDocuments(term.Key).Result;
+                this._documents.UnionWith(documents.Keys);
                 var nDocuments = new Dictionary<String, double>();
-                var IDF = 1+Math.Log(1.0 * Corpus.getNoDocuments() / documents.Keys.Count);
-                this.query[term.Key] = 1.0*term.Value / querySize *IDF;
+                var IDF = 1 + Math.Log(1.0 *  _corpus.getNoDocuments().Result / documents.Keys.Count);
+                this._query[term.Key] = 1.0 * term.Value / querySize * IDF;
                 foreach (var item in documents)
                 {
-                    var tF = 1.0* item.Value / Corpus.getDocumentLength(item.Key) ;
+                    var tF = 1.0 * item.Value / _corpus.getDocumentLength(item.Key).Result;
                     nDocuments[item.Key] = tF * IDF;
                 }
-                documentRank[term.Key] = nDocuments;
+                _documentRank[term.Key] = nDocuments;
                 ;
             }
         }
@@ -94,13 +100,13 @@ namespace WebSpy
             double dotProduct = 0;
             double queryMod = 0;
             double documentMod = 0;
-            foreach (var term in query)
+            foreach (var term in _query)
             {
                 queryMod += Math.Pow(term.Value,2);
-                if (documentRank[term.Key].ContainsKey(id))
+                if (_documentRank[term.Key].ContainsKey(id))
                 {
-                    documentMod += Math.Pow(documentRank[term.Key][id], 2);
-                    dotProduct += term.Value * documentRank[term.Key][id];
+                    documentMod += Math.Pow(_documentRank[term.Key][id], 2);
+                    dotProduct += term.Value * _documentRank[term.Key][id];
                 }
             }
             queryMod = Math.Sqrt(queryMod);
@@ -124,6 +130,20 @@ namespace WebSpy
                 }
             }
             return retDict;
+        }
+
+        public static Ranker init()
+        {
+            var query = new Dictionary<string, int>();
+            query["life"] = 1;
+            query["learning"] = 1;
+            IMongoClient _client;
+            IMongoDatabase _database;
+            _client = new MongoClient();
+            _database = _client.GetDatabase("webspy");
+            var corpus = new Corpus(_client, _database);
+            var ranker = new Ranker(corpus, query);
+            return ranker;
         }
     }
 }
