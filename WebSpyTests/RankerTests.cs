@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TikaOnDotNet.TextExtraction;
+//using TikaOnDotNet.TextExtraction;
 
 namespace WebSpy.Tests
 {
@@ -21,14 +21,14 @@ namespace WebSpy.Tests
             query["learning"] = 1;
             //ranker = new Ranker(query);
 
-            //Example of how to use the streamer
-            //Take this Code portion and put it where u want to put it.
-            //Don't forget the using statement above.
-            //Ben make sure to document your code very well and delete all these comments ;)
-            TextExtractor a = new TextExtractor();
-            var b = a.Extract(@"C: \Users\kooldeji\Documents\Finding Your Purpose.docx");
-            var c = b.Text.Trim();
-            Console.WriteLine(c+" + "+b.GetType()+" + "+c.GetType());
+            ////Example of how to use the streamer
+            ////Take this Code portion and put it where u want to put it.
+            ////Don't forget the using statement above.
+            ////Ben make sure to document your code very well and delete all these comments ;)
+            //TextExtractor a = new TextExtractor();
+            //var b = a.Extract(@"C: \Users\kooldeji\Documents\Finding Your Purpose.docx");
+            //var c = b.Text.Trim();
+            //Console.WriteLine(c+" + "+b.GetType()+" + "+c.GetType());
                         
 
         }
