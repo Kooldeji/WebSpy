@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-
+using TikaOnDotNet.TextExtraction;
 
 namespace WebSpy
 {
@@ -13,17 +13,18 @@ namespace WebSpy
     {
         public void GenerateString(string path)
         {
-            string filePath = path;
-            var text = "";
-            foreach(string data in File.ReadAllLines(filePath))
-            {
-                text += data + " ";
-            }
+            //use tika to extract data and store inside variable fileData
+            var textExtractor = new TextExtractor();
+
+            var fileData = textExtractor.Extract(path);
+            string text = fileData.Text;
+
             var regexItem = new Regex("[^a-zA-Z0-9_']+"); //create a regex object
             if (regexItem.IsMatch(text[text.Length - 1].ToString()))
             {
                 text = text.Remove(text.Length - 1);
             }
+
             string editedText = Regex.Replace(text, "[^a-zA-Z0-9_']+", " "); //Replace characters with space
             string[] words = editedText.Split(' '); //Add all words in the string to  array
 
