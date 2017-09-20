@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MongoDB;
 
 
 namespace WebSpy.Tests
@@ -12,75 +13,63 @@ namespace WebSpy.Tests
     [TestClass()]
     public class CorpusTests
     {
-        Dictionary<String, Dictionary<String, int>> a;
+        Corpus corpus;
+        String testID;
         [TestInitialize()]
         public void CorpusTest()
         {
-            a = new Dictionary<String, Dictionary<String, int>>();
-            a["the"] = new Dictionary<string, int>();
-            a["the"]["1"] = 1;
-            a["the"]["2"] = 1;
-            a["game"] = new Dictionary<string, int>();
-            a["game"]["1"] = 2;
-            a["of"] = new Dictionary<string, int>();
-            a["of"]["1"] = 2;
-            a["life"] = new Dictionary<string, int>();
-            a["life"]["1"] = 1;
-            a["life"]["2"] = 1;
-            a["is"] = new Dictionary<string, int>();
-            a["is"]["1"] = 1;
-            a["is"]["2"] = 1;
-            a["a"] = new Dictionary<string, int>();
-            a["a"]["1"] = 1;
-            a["everlasting"] = new Dictionary<string, int>();
-            a["everlasting"]["1"] = 1;
-            a["learning"] = new Dictionary<string, int>();
-            a["learning"]["1"] = 1;
-            a["learning"]["3"] = 1;
-            a["unexamined"] = new Dictionary<string, int>();
-            a["unexamined"]["2"] = 1;
-            a["not"] = new Dictionary<string, int>();
-            a["not"]["2"] = 1;
-            a["worth"] = new Dictionary<string, int>();
-            a["worth"]["2"] = 1;
-            a["living"] = new Dictionary<string, int>();
-            a["living"]["2"] = 1;
-            a["never"] = new Dictionary<string, int>();
-            a["never"]["3"] = 1;
-            a["stop"] = new Dictionary<string, int>();
-            a["stop"]["3"] = 1;
-            
+            corpus = Corpus.init();
         }
 
         [TestMethod()]
         public void GetTermFrequenciesTest()
         {
-
-            Assert.AreEqual(a.Count, 14);
+            CorpusTest();
+            var res = corpus.GetTermFrequencies();
+            res.Wait();
+            foreach (var i in res.Result)
+            {
+                Console.WriteLine(i.Key);
+            }
         }
 
         [TestMethod()]
         public void getDocumentsTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.getDocuments();
+            res.Wait();
+            foreach (var i in res.Result)
+            {
+                Console.WriteLine(i);
+            }
         }
 
         [TestMethod()]
         public void getDocumentsTest1()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.getDocuments("learning");
+            res.Wait();
+            foreach (var i in res.Result)
+            {
+                Console.WriteLine(i.Key + " " + i.Value);
+            }
         }
 
         [TestMethod()]
         public void getDocumentsTest2()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.getNoDocuments();
+            res.Wait();
+            Console.WriteLine(res.Result);
+            Console.WriteLine(res);
         }
 
         [TestMethod()]
         public void getDocumentLengthTest()
         {
-            Assert.Fail();
         }
 
         [TestMethod()]
@@ -92,67 +81,107 @@ namespace WebSpy.Tests
         [TestMethod()]
         public void getTermsTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.getTerms();
+            res.Wait();
+            foreach (var i in res.Result)
+            {
+                Console.WriteLine(i);
+            }
         }
 
         [TestMethod()]
         public void getTermsTest1()
         {
-            Assert.Fail();
+            
+            var res = corpus.getTerms("598e28b96f42650033a71cba");
+            res.Wait();
+            foreach (var i in res.Result)
+            {
+                Console.WriteLine(i);
+            }
         }
 
         [TestMethod()]
         public void getRepositoryTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res6 = corpus.getRepository();
+            res6.Wait();
+            Console.WriteLine(res6.Result);
         }
 
         [TestMethod()]
         public void getDocumentPathTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            corpus.changeDocumentPath(testID, "1.txt").Wait();
         }
 
         [TestMethod()]
         public void addDocumentTest()
         {
-            Assert.Fail();
-        }
+            var res =  corpus.addDocument("5.txt");
+            res.Wait();
+            Console.WriteLine(res.Result);
 
+            var a = new Dictionary<string, int>();
+            a["stop"] = 1;
+            a["learning"] = 2;
+            res = corpus.addDocument("4.txt", a);
+            res.Wait();
+            Console.WriteLine(res.Result);
+        }
+        
         [TestMethod()]
         public void removeDocumentTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.removeDocument(testID);
+            res.Wait();
+            Console.WriteLine(res.Result);
         }
 
         [TestMethod()]
         public void changePathTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.changeDocumentPath("598e28b96f42650033a71cba", "5.txt");
+            res.Wait();
+            Console.WriteLine(res.Result);
         }
 
         [TestMethod()]
         public void setRepoTest()
         {
-            Assert.Fail();
+            var res = corpus.setRepository("C:/ Users / kooldeji / Documents / repo");
+            res.Wait();
         }
 
         [TestMethod()]
         public void setLastCrawledTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.setLastCrawled(100);
+            res.Wait();
+            Console.WriteLine(res.Result);
         }
 
         [TestMethod()]
         public void getLastCrawledTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.getLastCrawled();
+            res.Wait();
+            Console.WriteLine(res.Result);
         }
 
         [TestMethod()]
         public void getDocumentIDTest()
         {
-            Assert.Fail();
+            var res = corpus.getDocumentID("4.txt");
+            res.Wait();
+            Console.WriteLine(res.Result);
         }
 
         [TestMethod()]

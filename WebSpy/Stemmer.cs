@@ -18,7 +18,7 @@ namespace WebSpy
     /// var stemmer = new Stemmer();
     /// var stem = stemmer.StemWord(word);
     /// </example>
-    class Stemmer
+    public class Stemmer
     {
         // The passed in word turned into a char array.
         // Quicker to use to rebuilding strings each time a change is made.

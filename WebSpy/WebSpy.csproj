@@ -176,11 +176,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConversionClass.cs" />
     <Compile Include="Corpus.cs" />
     <Compile Include="Crawler.cs" />
+    <Compile Include="Indexer.cs" />
     <Compile Include="Ranker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Stemmer.cs" />
+    <Compile Include="Tokenizer.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram1.cd" />

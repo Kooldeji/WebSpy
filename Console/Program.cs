@@ -19,24 +19,26 @@ namespace WebSpyConsole
             {
                 Console.Write("Enter Query: ");
                 var q = Console.ReadLine();
-                Console.WriteLine("Entered: "+q);
+                Console.WriteLine("Entered: " + q);
                 var query = new Dictionary<string, int>();
                 var list = q.Trim().Split(' ');
+                var stemmer = new Stemmer();
                 foreach (var item in list)
                 {
+                    var word = stemmer.StemWord(item.ToLower());
                     try
                     {
-                        query[item.ToLower()] += 1;
+                        query[word] += 1;
                     }
                     catch
                     {
-                        query[item.ToLower()] = 1;
+                        query[word] = 1;
                     }
                 }
                 var ranker = new Ranker(corpus, query);
                 foreach (var item in ranker.Rank())
                 {
-                    Console.WriteLine(corpus.getDocumentPath(item.Key).Result+" -- "+item.Value);
+                    Console.WriteLine(corpus.getDocumentPath(item.Key).Result + " -- " + item.Value);
                 }
             }
         }

@@ -42,6 +42,10 @@ namespace WebSpy
             
         }
 
+        /// <summary>
+        /// Returns a list of keyValuePair of the documents (in descending order) and their rank.
+        /// </summary>
+        /// <returns></returns>
         public List<KeyValuePair<String, double>> Rank()
         {
             //A list of the relevant documents in other of relevance
