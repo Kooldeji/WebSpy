@@ -176,7 +176,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ConversionClass.cs" />
     <Compile Include="Corpus.cs" />
     <Compile Include="Crawler.cs" />
     <Compile Include="Indexer.cs" />
