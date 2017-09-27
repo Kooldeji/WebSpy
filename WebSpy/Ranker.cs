@@ -13,28 +13,28 @@ namespace WebSpy
         /// <summary>
         /// An instance of the corpus.
         /// </summary>
-        private Corpus _corpus;
+        private ICorpus _corpus;
         /// <summary>
         /// The documents that have any of the query terms
         /// </summary>
         private HashSet<String> _documents;
         /// <summary>
-        /// An inverted index of terms mapped to a mapping of each document mapped to 
+        /// An inverted index of terms mapped to a mapping of each document to 
         /// the term's TF_IDF rank.
         /// </summary>
         private Dictionary<String, Dictionary<String, double>> _documentRank;
         /// <summary>
-        /// The query document containing each term mapped it's TF_IDF rank.
+        /// The query document containing each term mapped to it's TF_IDF rank.
         /// </summary>
-        private Dictionary<String, double> _query;
+        private Dictionary<String, double> _queryRank;
         /// <summary>
         /// Initializes a new instance of the <see cref="Ranker"/> class.
         /// </summary>
         /// <param name="query">A mapping of each query term to the frequency in the query document.</param>
-        public Ranker(Corpus corpus, Dictionary<String, int> query)
+        public Ranker(ICorpus corpus, Dictionary<String, int> query)
         {
             if (query == null || corpus == null) throw new ArgumentNullException();
-            this._query = new Dictionary<string, double>();
+            this._queryRank = new Dictionary<string, double>();
             _corpus = corpus;
             _documentRank = new Dictionary<string, Dictionary<string, double>>();
             _documents = new HashSet<string>();
@@ -81,16 +81,21 @@ namespace WebSpy
                 querySize += term.Value;
             }
 
-            foreach (KeyValuePair<String, int> term in query)
+            foreach (var term in query)
             {
-                IDictionary<String, int> documents =  _corpus.getDocuments(term.Key).Result;
+                IDictionary<String, int> documents = new Dictionary<String, int>();
+                foreach (var doc in _corpus.GetDocuments(term.Key).Result)
+                {
+                    if (documents.Keys.Contains(doc.DocID)) continue;
+                    documents.Add(doc.DocID, doc.Pos.Count);
+                }
                 this._documents.UnionWith(documents.Keys);
                 var nDocuments = new Dictionary<String, double>();
-                var IDF = 1 + Math.Log(1.0 *  _corpus.getNoDocuments().Result / documents.Keys.Count);
-                this._query[term.Key] = 1.0 * term.Value / querySize * IDF;
+                var IDF = 1 + Math.Log(1.0 *  _corpus.GetNoDocuments().Result / documents.Keys.Count);
+                this._queryRank[term.Key] = 1.0 * term.Value / querySize * IDF;
                 foreach (var item in documents)
                 {
-                    var tF = 1.0 * item.Value / _corpus.getDocumentLength(item.Key).Result;
+                    var tF = 1.0 * item.Value / _corpus.GetDocumentLength(item.Key).Result;
                     nDocuments[item.Key] = tF * IDF;
                 }
                 _documentRank[term.Key] = nDocuments;
@@ -104,7 +109,7 @@ namespace WebSpy
             double dotProduct = 0;
             double queryMod = 0;
             double documentMod = 0;
-            foreach (var term in _query)
+            foreach (var term in _queryRank)
             {
                 queryMod += Math.Pow(term.Value,2);
                 if (_documentRank[term.Key].ContainsKey(id))
@@ -135,19 +140,6 @@ namespace WebSpy
             }
             return retDict;
         }
-
-        public static Ranker init()
-        {
-            var query = new Dictionary<string, int>();
-            query["life"] = 1;
-            query["learning"] = 1;
-            IMongoClient _client;
-            IMongoDatabase _database;
-            _client = new MongoClient();
-            _database = _client.GetDatabase("webspy");
-            var corpus = new Corpus(_client, _database);
-            var ranker = new Ranker(corpus, query);
-            return ranker;
-        }
+        
     }
 }

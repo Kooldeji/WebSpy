@@ -6,13 +6,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MongoDB.Bson.Serialization.Attributes;
+using System.Linq.Expressions;
+using MongoDB.Bson.Serialization;
 
 namespace WebSpy
 {
     /// <summary>
     /// A class that acts as an interface between the entire API and the runtime database.
     /// </summary>
-    public class Corpus
+    public class Corpus : ICorpus
     {
         /// <summary>
         /// The Mongo client
@@ -29,10 +31,24 @@ namespace WebSpy
         /// <summary>
         /// A collection that consists of an inverted table of the terms and the documents they exist
         /// </summary>
-        private IMongoCollection<BsonDocument> _invertedtable;
+        private IMongoCollection<TermDocument> _invertedTable;
         /// A collection that encapsulates the documents in the corpus and their attributes like path and length.
         /// </summary>
         private IMongoCollection<BsonDocument> _documentsTable;
+
+        public static void main(string[] args)
+        {
+            Corpus corpus = Corpus.init();
+            corpus.reset();
+        }
+
+        static Corpus()
+        {
+            if (!BsonClassMap.IsClassMapRegistered(typeof(DocumentReference)))
+            {
+                BsonClassMap.RegisterClassMap<DocumentReference>();
+            }
+        }
         /// <summary>
         /// Initializes a new instance of the <see cref="Corpus"/> class.
         /// </summary>
@@ -48,50 +64,38 @@ namespace WebSpy
             _client = client;
             _database = database;
             _root = database.GetCollection<BsonDocument>("Root");
-            _invertedtable = database.GetCollection<BsonDocument>("InvertedTable");
+            _invertedTable = database.GetCollection<TermDocument>("InvertedTable");
             _documentsTable = database.GetCollection<BsonDocument>("DocumentsTable");
 
         }
         /// <summary>
-        /// Gets the term frequencies.
+        /// Asynchronously gets all the terms in from of TermDocuments.
         /// </summary>
-        /// <returns></returns>
-        public async Task<Dictionary<string, Dictionary<string, int>>> GetTermFrequencies()
+        /// <returns>A Task of List of TermDocuments</returns>
+        public async Task<List<ITermDocument>> GetTermDocuments()
         {
-            var result = new Dictionary<String, Dictionary<string, int>>();
-            using (var cursor = await _invertedtable.FindAsync(new BsonDocument()))
-            {
-                while (await cursor.MoveNextAsync())
-                {
-                    IEnumerable<BsonDocument> batch = cursor.Current;
-                    foreach (BsonDocument document in batch)
-                    {
-                        result[document["_id"].AsString] = new Dictionary<string, int>();
-                        foreach (BsonDocument doc in document["docs"].AsBsonArray)
-                        {
-                            result[document["_id"].AsString][doc["doc_id"].AsObjectId.ToString()] = doc["no"].AsInt32;
-                        }
-                    }
-                }
-            }
-            return result;
+            List<ITermDocument> ret = new List<ITermDocument>();
+            await (await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty)).ForEachAsync(t => ret.Add(t));
+            Console.WriteLine(1);
+            Console.WriteLine(ret.Count());
+            return ret;
         }
 
         /// <summary>
         /// Gets the documents.
         /// </summary>
         /// <returns></returns>
-        public async Task<HashSet<string>> getDocuments()
+        public async Task<HashSet<string>> GetDocuments()
         {
             var result = new HashSet<String>();
-            using (var cursor = await _documentsTable.FindAsync(new BsonDocument()))
+            using (var cursor = await _documentsTable.FindAsync(FilterDefinition<BsonDocument>.Empty))
             {
                 while (await cursor.MoveNextAsync())
                 {
                     IEnumerable<BsonDocument> batch = cursor.Current;
                     foreach (BsonDocument document in batch)
                     {
-                        result.Add(document["_id"].AsObjectId.ToString());
+                        result.Add(document["_id"].AsString);
                     }
                 }
             }
@@ -102,19 +106,15 @@ namespace WebSpy
         /// Gets the documents that a term exists.
         /// </summary>
         /// <param name="term">The term.</param>
-        /// <returns></returns>
-        public async Task<Dictionary<string, int>> getDocuments(String term)
+        /// <returns>A task of the document reference</returns>
+        public async Task<HashSet<IDocumentReference>> GetDocuments(String term)
         {
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", term);
-            var result = new Dictionary<String, int>();
-            BsonDocument doc = await _invertedtable.Find(filter).FirstOrDefaultAsync();
-            if (doc == null)
-                return result;
-            foreach (var item in doc["docs"].AsBsonArray)
+            var res = await _invertedTable.Find(t => t.Term == term).Project(t => t.Docs).FirstOrDefaultAsync();
+            if (res == null)
             {
-                result[item["doc_id"].AsObjectId.ToString()] = item["no"].AsInt32;
+                return new HashSet<IDocumentReference>();
             }
-            return result;
+            return res;
         }
 
         /// <summary>
@@ -122,19 +122,18 @@ namespace WebSpy
         /// </summary>
         /// <param name="predicate">The predicate to match documents.</param>
         /// <returns></returns>
-        public async Task<Dictionary<string, int>> getDocuments(Func<String, bool> predicate)
+        public async Task<HashSet<string>> GetDocuments(Func<String, bool> predicate)
         {
-            var result = new Dictionary<String, int>();
-            using (var cursor = await _documentsTable.FindAsync(new BsonDocument()))
+            var result = new HashSet<string>();
+            using (var cursor = await _documentsTable.FindAsync(FilterDefinition<BsonDocument>.Empty))
             {
                 while (await cursor.MoveNextAsync())
                 {
                     IEnumerable<BsonDocument> batch = cursor.Current;
                     foreach (BsonDocument document in batch)
                     {
-                        var doc = document["_id"].AsObjectId.ToString();
-                        var no = (int)document["no"].AsDouble;
-                        if (predicate(doc)) result.Add(doc, no);
+                        var doc = document["_id"].AsString;
+                        if (predicate(doc)) result.Add(doc);
                     }
                 }
             }
@@ -146,39 +145,34 @@ namespace WebSpy
         /// </summary>
         /// <param name="id">The Document id.</param>
         /// <returns></returns>
-        public async Task<int> getDocumentLength(string id)
+        public async Task<long> GetDocumentLength(string id)
         {
-
-            BsonDocument ret = await _documentsTable.Find(Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id))).FirstOrDefaultAsync();
+            BsonDocument ret = await _documentsTable.Find(Builders<BsonDocument>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
             if (ret == null) return 0;
-            return ret["length"].AsInt32;
+            return ret["length"].AsInt64;
         }
 
         /// <summary>
         /// Gets the no documents.
         /// </summary>
         /// <returns></returns>
-        public async Task<int> getNoDocuments()
+        public async Task<int> GetNoDocuments()
         {
             BsonDocument ret = await _root.Find(new BsonDocument()).FirstOrDefaultAsync();
             if (ret == null) return 0;
-            return (int)ret["no_docs"].AsDouble;
+            return ret["no_docs"].AsInt32;
         }
 
         /// <summary>
         /// Gets the terms.
         /// </summary>
         /// <returns></returns>
-        public async Task<List<string>> getTerms()
+        public async Task<HashSet<string>> GetTerms()
         {
-            List<BsonDocument> docs = await _invertedtable.Find(new BsonDocument()).ToListAsync();
-            if (docs == null) return null;
-            var ret = new List<String>();
-            foreach (var doc in docs)
-            {
-                ret.Add(doc["_id"].AsString);
-            }
-            return ret;
+            var projection = Builders<TermDocument>.Projection.Include(t => t.Term);
+            var docs = new HashSet<string>();
+            await (await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty)).ForEachAsync(d => docs.Add(d.Term));
+            return docs;
         }
 
         /// <summary>
@@ -186,26 +180,64 @@ namespace WebSpy
         /// </summary>
         /// <param name="id">The Document id.</param>
         /// <returns></returns>
-        public async Task<List<string>> getTerms(String id)
+        public async Task<HashSet<string>> GetTerms(String id)
+        {           
+            var docs = new HashSet<String>();
+            await (await _invertedTable.FindAsync(Builders<TermDocument>.Filter.Eq("docs.doc_id", id))).ForEachAsync(t => docs.Add(t.Term));
+            return docs;
+        }
+        /// <summary>
+        /// Gets the terms that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <returns></returns>
+        public async Task<HashSet<String>> GetTerms(Func<String, bool> predicate)
         {
-            var filter = Builders<BsonDocument>.Filter.Eq("docs.doc_id", new ObjectId(id));
-            List<BsonDocument> docs = await _invertedtable.Find(filter).ToListAsync();
-            if (docs == null) return null;
-            var ret = new List<String>();
-            foreach (var doc in docs)
+            var result = new HashSet<String>();
+            using (var cursor = await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty))
             {
-                ret.Add(doc["_id"].AsString);
+                while (await cursor.MoveNextAsync())
+                {
+                    IEnumerable<TermDocument> batch = cursor.Current;
+                    foreach (var termDoc in batch)
+                    {
+                        if (predicate(termDoc.Term)) result.Add(termDoc.Term);
+                    }
+                }
             }
-            return ret;
+            return result;
+        }
+        /// <summary>
+        /// Gets a number of terms that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <param name="no">The no of terms.</param>
+        /// <returns></returns>
+        public async Task<List<String>> GetTerms(Func<String, bool> predicate, int no)
+        {
+            var result = new List<String>();
+            using (var cursor = await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty))
+            {
+                while (await cursor.MoveNextAsync())
+                {
+                    IEnumerable<TermDocument> batch = cursor.Current;
+                    foreach (var termDoc in batch)
+                    {
+                        if (predicate(termDoc.Term)) result.Add(termDoc.Term);
+                        if (result.Count() == no) return result;
+                    }
+                }
+            }
+            return result;
         }
 
         /// <summary>
         /// Gets the repository.
         /// </summary>
         /// <returns></returns>
-        public async Task<string> getRepository()
+        public async Task<string> GetRepository()
         {
-            BsonDocument ret = await _root.Find(new BsonDocument()).FirstOrDefaultAsync();
+            BsonDocument ret = await _root.Find(FilterDefinition<BsonDocument>.Empty).FirstOrDefaultAsync();
             if (ret == null) return "";
             return ret["repo"].AsString;
         }
@@ -215,10 +247,10 @@ namespace WebSpy
         /// </summary>
         /// <param name="id">The Document id.</param>
         /// <returns></returns>
-        public async Task<string> getDocumentPath(String id)
+        public async Task<string> GetDocumentPath(String id)
         {
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
-            BsonDocument ret = await _documentsTable.Find(filter).FirstOrDefaultAsync();
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
+            BsonDocument ret = await _documentsTable.Find(filter).Project("{ path: 1 }").FirstOrDefaultAsync();
             return ret["path"].AsString;
         }
 
@@ -227,9 +259,9 @@ namespace WebSpy
         /// </summary>
         /// <param name="path">The path that the document points to.</param>
         /// <returns></returns>
-        public async Task<bool> addDocument(string path)
+        public async Task<bool> AddDocument(string path)
         {
-            await _documentsTable.InsertOneAsync(new BsonDocument { { "path", path }, { "length", 0 } });
+            await _documentsTable.InsertOneAsync(new BsonDocument { { "_id", ((await GetNoDocuments()) + 1).ToString() }, { "path", path }, { "length", 0 } });
             var update = Builders<BsonDocument>.Update.Inc("no_docs", 1);
             await _root.UpdateOneAsync(new BsonDocument(), update);
             return true;
@@ -241,11 +273,11 @@ namespace WebSpy
         /// <param name="path">The path that the document points to.</param>
         /// <param name="index">Dictionary of terms mapped to their nos of occurences in the doc.</param>
         /// <returns></returns>
-        public async Task<bool> addDocument(String path, Dictionary<string, int> index)
+        public async Task<bool> AddDocument(String path, long length, List<ITermDocument> index)
         {
-            await addDocument(path);
-            var id = getDocumentID(path).Result;
-            await updateDocument(id, index);
+            await AddDocument(path);
+            var id = await GetDocumentID(path);
+            await UpdateDocument(id, length, index);
             return true;
         }
 
@@ -255,68 +287,61 @@ namespace WebSpy
         /// <param name="id">The Document id.</param>
         /// <param name="index">Dictionary of terms mapped to their nos of occurences in the doc.</param>
         /// <returns></returns>
-        public async Task<bool> updateDocument(string id, Dictionary<string, int> index)
+        public async Task<bool> UpdateDocument(string id, long length, List<ITermDocument> index)
         {
-            foreach (var item in index)
+            
+            foreach (var termDoc in index)
             {
-                var filter = Builders<BsonDocument>.Filter.Eq("_id", item.Key);
-                BsonDocument doc = await _invertedtable.Find(filter).FirstOrDefaultAsync();
+                //var filter = Builders<BsonDocument>.Filter.Eq("_id", item.Key);
+                var termDoc2 = await _invertedTable.Find(t => t.Term==termDoc.Term).Project(t => t.Term).FirstOrDefaultAsync();
 
-                //Term does not exist add term first, then add no document occurence
-                if (doc == null)
+                //Check if term exists
+                if (termDoc2 == null)
+                //Term does not exist add term first, then add document and no document occurence
                 {
-                    doc = new BsonDocument
+                    foreach (var doc in termDoc.Docs)
                     {
-                        {"_id", item.Key},
-                        {"docs", new BsonArray
-                            {
-                                new BsonDocument
-                                {
-                                    { "doc_id", new ObjectId(id)},
-                                    {"no", item.Value }
-                                }
-                            }
-                        }
-                    };
-                    await _invertedtable.InsertOneAsync(doc);
+                        doc.DocID = id;
+                    }
+                    await _invertedTable.InsertOneAsync((TermDocument) termDoc);
                 }
                 else {
-
-                    var docFilter = Builders<BsonDocument>.Filter.Eq("_id", item.Key) & Builders<BsonDocument>.Filter.ElemMatch<BsonDocument>("docs", new BsonDocument("doc_id", new ObjectId(id)));
-                    //Term exist in document previously increment the number of occurences
-                    doc = await _invertedtable.Find(docFilter).FirstOrDefaultAsync();
-                    if (doc != null)
+                    //Term exists.
+                    //var docFilter = Builders<BsonDocument>.Filter.Eq("_id", item.Key) & Builders<BsonDocument>.Filter.ElemMatch<BsonDocument>("docs", new BsonDocument("doc_id", new ObjectId(id)));
+                    foreach (var doc in termDoc.Docs)
                     {
-                        var inc = doc["docs"].AsBsonArray.First(x => x["doc_id"] == new ObjectId(id))["no"].AsInt32+item.Value;
-                        if (inc <= 0)
+                        var postfix = doc.PostFix;
+                        //Expression<Func<TermDocument, bool>> find = (t => t.Term == termDoc.Term && t.Docs.Any(d => d.DocID == id && d.PostFix == postfix));
+                        var docFilter = Builders<TermDocument>.Filter.Eq("_id", termDoc.Term) & Builders<TermDocument>.Filter.Eq("docs.doc_id", id) & Builders<TermDocument>.Filter.Eq("docs.postfix", postfix); ;
+                        termDoc2 = await _invertedTable.Find(docFilter).Project(t => t.Term).FirstOrDefaultAsync();
+                        if (termDoc2 == null)
                         {
-                            var pullUpdateFilter = Builders<BsonDocument>.Update.PullFilter("docs",
-                                Builders<BsonDocument>.Filter.Eq("doc_id", new ObjectId(id)));
-                            await _invertedtable.UpdateOneAsync(docFilter, pullUpdateFilter);
-
-                            var clearFilter = Builders<BsonDocument>.Filter.Eq("_id", item.Key) & Builders<BsonDocument>.Filter.SizeLte("docs", 0);
-                            var clearResult = await _invertedtable.DeleteOneAsync(clearFilter);
+                            doc.DocID = id;
+                            await _invertedTable.UpdateOneAsync(t => t.Term == termDoc.Term, Builders<TermDocument>.Update.Push(t => t.Docs, doc));
                         }
                         else
                         {
-                            var update = Builders<BsonDocument>.Update.Set("docs.$.no", inc);
-                            await _invertedtable.UpdateOneAsync(docFilter, update);
+                            if (doc.Pos.Count < 1)
+                            {
+                                var pullUpdateFilter = Builders<TermDocument>.Update.PullFilter(t => t.Docs,
+                                    d => d.DocID == id);
+                                await _invertedTable.UpdateOneAsync(t => t.Term == termDoc.Term, pullUpdateFilter);
+                                //var clearFilter = Builders<BsonDocument>.Filter.Eq("_id", item.Key) & Builders<BsonDocument>.Filter.SizeLte("docs", 0);
+                                await _invertedTable.DeleteOneAsync(t => t.Term == termDoc.Term && t.Docs.Count() < 1);
+                            }
+                            else
+                            {
+                                await _invertedTable.UpdateOneAsync(docFilter, Builders<TermDocument>.Update.Set("docs.$.pos", doc.Pos));
+                            }
                         }
-                        
-                        
-                    }
-                    //First occurence of term in document.
-                    else
-                    {
-                        var update = Builders<BsonDocument>.Update.Push("docs", new BsonDocument
-                                {
-                                    { "doc_id", new ObjectId(id)},
-                                    {"no", item.Value }
-                                });
-                        await _invertedtable.UpdateOneAsync(filter, update);
                     }
                 }
-                await _documentsTable.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id)), Builders<BsonDocument>.Update.Inc("length", item.Value));
+            }
+            Console.WriteLine("l"+length);
+            if (id != null)
+            {
+                Console.WriteLine(length);
+                await _documentsTable.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", id), Builders<BsonDocument>.Update.Set("length", length));
             }
 
             return true;
@@ -328,20 +353,23 @@ namespace WebSpy
         /// </summary>
         /// <param name="id">The Document id.</param>
         /// <returns></returns>
-        public async Task<bool> removeDocument(string id)
+        public async Task<bool> RemoveDocument(string id)
         {
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
+            //Remove document from document table
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
             var result = await _documentsTable.DeleteManyAsync(filter);
 
-            filter = Builders<BsonDocument>.Filter.Eq("docs.doc_id", new ObjectId(id));
-            var update = Builders<BsonDocument>.Update.PullFilter("docs",
-                Builders<BsonDocument>.Filter.Eq("doc_id", new ObjectId(id)));
-            var result2 = await _invertedtable.UpdateManyAsync(filter, update);
-            var clearFilter = Builders<BsonDocument>.Filter.SizeLte("docs", 0);
-            var clearResult = await _invertedtable.DeleteManyAsync(clearFilter);
+            //Pull the document from all occurences in the inverted table 
+            var pullUpdateFilter = Builders<TermDocument>.Update.PullFilter("docs", Builders<BsonDocument>.Filter.Eq("doc_id", id));
+            await _invertedTable.UpdateManyAsync(Builders<TermDocument>.Filter.Eq("docs.doc_id", id), pullUpdateFilter);
 
-            update = Builders<BsonDocument>.Update.Inc("no_docs", -1);
-            await _root.UpdateOneAsync(new BsonDocument(), update);
+            //Clear terms with empty documents from database
+            var clearFilter = Builders<BsonDocument>.Filter.SizeLte("docs", 0);
+            await _invertedTable.DeleteManyAsync(t => t.Docs.Count() < 1);
+
+            //Decrement the number of documents
+            var update = Builders<BsonDocument>.Update.Inc("no_docs", -1);
+            await _root.UpdateOneAsync(FilterDefinition<BsonDocument>.Empty, update);
             
             return true;
         }
@@ -352,9 +380,9 @@ namespace WebSpy
         /// <param name="id">The Document id.</param>
         /// <param name="newPath">The new path.</param>
         /// <returns></returns>
-        public async Task<bool> changeDocumentPath(string id, string newPath)
+        public async Task<bool> ChangeDocumentPath(string id, string newPath)
         {
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
             var update = Builders<BsonDocument>.Update.Set("path", newPath);
             await _documentsTable.UpdateOneAsync(filter, update);
             return true;
@@ -365,7 +393,7 @@ namespace WebSpy
         /// </summary>
         /// <param name="path">The path of the repository.</param>
         /// <returns></returns>
-        public async Task<bool> setRepository(string path)
+        public async Task<bool> SetRepository(string path)
         {
             var update = Builders<BsonDocument>.Update.Set("repo", path);
             await _root.UpdateOneAsync(new BsonDocument(), update);
@@ -377,9 +405,9 @@ namespace WebSpy
         /// </summary>
         /// <param name="time">The last crawled time.</param>
         /// <returns></returns>
-        public async Task<bool> setLastCrawled(long time)
+        public async Task<bool> SetLastCrawled(long time)
         {
-            var update = Builders<BsonDocument>.Update.Set("crawled", (double)time);
+            var update = Builders<BsonDocument>.Update.Set("crawled", time);
             await _root.UpdateOneAsync(new BsonDocument(), update);
             return true;
         }
@@ -388,11 +416,11 @@ namespace WebSpy
         /// Gets the last crawled time.
         /// </summary>
         /// <returns></returns>
-        public async Task<long> getLastCrawled()
+        public async Task<long> GetLastCrawled()
         {
             BsonDocument ret = await _root.Find(new BsonDocument()).FirstOrDefaultAsync();
             if (ret == null) return 0;
-            return (long)ret["crawled"].AsDouble;
+            return ret["crawled"].AsInt64;
         }
 
         /// <summary>
@@ -401,12 +429,12 @@ namespace WebSpy
         /// <param name="path">The path of the document.</param>
         /// <returns>The id</returns>
         /// <exception cref="System.NotImplementedException"></exception>
-        public async Task<string> getDocumentID(string path)
+        public async Task<string> GetDocumentID(string path)
         {
             var filter = Builders<BsonDocument>.Filter.Eq("path", path);
             BsonDocument ret = await _documentsTable.Find(filter).FirstOrDefaultAsync();
             if (ret == null) return null;
-            return ret["_id"].AsObjectId.ToString();
+            return ret["_id"].ToString();
         }
         public static Corpus init()
         {
@@ -416,6 +444,216 @@ namespace WebSpy
             _database = _client.GetDatabase("webspy");
             var corpus = new Corpus(_client, _database);
             return corpus;
+        }
+        public async Task reset()
+        {
+            _database.DropCollection("Root");
+            _database.DropCollection("DocumentsTable");
+            _database.DropCollection("InvertedTable");
+            var doc = new BsonDocument
+            {
+                {"_id", "1" },
+                {"path", "1.txt" },
+                {"length", long.Parse("6") }
+            };
+            var doc1 = new BsonDocument
+            {
+                {"_id", "2" },
+                {"path", "2.txt" },
+                {"length",long.Parse("4") }
+            };
+            //await _documentsTable.InsertOneAsync(doc);
+            //await _documentsTable.InsertOneAsync(doc1);
+            doc = new BsonDocument
+            {
+                {"_id", "1"},
+                {"no_docs", 0},
+                {"repo", "C:/Users/kooldeji/Documents/repo" },
+                {"crawled", long.Parse("0") }
+            };
+            await _root.InsertOneAsync(doc);
+            var index = new List<KeyValuePair<string, string>>();
+            var termdict = new Dictionary<string, TermDocument>();
+            var docdict = new Dictionary<string, DocumentReference>();
+            var id = "1";
+            index.Add(new KeyValuePair<string, string>("life", "life"));
+            index.Add(new KeyValuePair<string, string>("is", "is"));
+            index.Add(new KeyValuePair<string, string>("learn", "learning"));
+            index.Add(new KeyValuePair<string, string>("with", "with"));
+            index.Add(new KeyValuePair<string, string>("learn", "learners"));
+            var c = 0;
+            foreach (var item in index)
+            {
+                c += 1;
+                if (item.Key.Count() <= 2) continue;
+                TermDocument term;
+                if (termdict.Keys.Contains(item.Key)) term = termdict[item.Key];
+                else
+                {
+                    term = new TermDocument(item.Key);
+                    termdict.Add(item.Key, term);
+                }
+                DocumentReference docref;
+                if (docdict.Keys.Contains(item.Key + item.Value))
+                {
+                    docref = docdict[item.Key + item.Value];
+                }
+                else
+                {
+                    docref = new DocumentReference(id, item.Value);
+                    term.addDoc(docref);
+                }
+                docref.addPos(c);
+            }
+            id = "2";
+            docdict = new Dictionary<string, DocumentReference>();
+            index.Clear();
+            index.Add(new KeyValuePair<string, string>("learn", "learning"));
+            index.Add(new KeyValuePair<string, string>("is", "is"));
+            index.Add(new KeyValuePair<string, string>("very", "very"));
+            index.Add(new KeyValuePair<string, string>("good", "good"));
+            index.Add(new KeyValuePair<string, string>("infact", "infact"));
+            index.Add(new KeyValuePair<string, string>("learn", "learning"));
+            index.Add(new KeyValuePair<string, string>("is", "is"));
+            index.Add(new KeyValuePair<string, string>("awesome", "awesome"));
+            foreach (var item in index)
+            {
+                c += 1;
+                if (item.Key.Count() <= 2) continue;
+                TermDocument term;
+                if (termdict.Keys.Contains(item.Key)) term = termdict[item.Key];
+                else
+                {
+                    term = new TermDocument(item.Key);
+                    termdict.Add(item.Key, term);
+                }
+                DocumentReference docref;
+                if (docdict.Keys.Contains(item.Key + item.Value))
+                {
+                    docref = docdict[item.Key + item.Value];
+                }
+                else
+                {
+                    docref = new DocumentReference(id, item.Value);
+                    docdict.Add(item.Key + item.Value, docref);
+                    term.addDoc(docref);
+                }
+                docref.addPos(c);
+            }
+            //await _invertedTable.InsertManyAsync(termdict.Values);
+
+        }
+    }
+
+    public class TermDocument : ITermDocument
+    {
+        private HashSet<IDocumentReference> _docs;
+        private string _term;
+
+        [BsonElement("docs")]
+        public HashSet<IDocumentReference> Docs
+        {
+            get
+            {
+                return new HashSet<IDocumentReference>(_docs);
+            }
+            set
+            {
+                _docs = new HashSet<IDocumentReference>(value);
+            }
+        }
+
+        [BsonId]
+        public string Term
+        {
+            get
+            {
+                return _term;
+            }
+            private set
+            {
+                _term = value.ToLower();
+            }
+        }
+
+        public TermDocument(String term, HashSet<IDocumentReference> docs)
+        {
+            this.Term = term;
+            this.Docs = docs;
+
+        }
+        public TermDocument(String term)
+            :this(term, new HashSet<IDocumentReference>())
+        {
+        }
+
+        public void removeDoc(IDocumentReference doc)
+        {
+            _docs.Remove(doc);
+        }
+
+        public void addDoc(IDocumentReference doc)
+        {
+            _docs.Add(doc);
+        }
+    }
+
+    public class DocumentReference : IDocumentReference
+    {
+        private HashSet<int> _pos;
+        private string _postfix;
+
+        [BsonElement("doc_id")]
+        public string DocID
+        {
+            get; set;
+        }
+
+        [BsonElement("pos")]
+        public HashSet<int> Pos
+        {
+            get
+            {
+                return new HashSet<int>(_pos);
+            }
+            set
+            {
+                _pos = new HashSet<int>(value);
+            }
+        }
+        [BsonElement("postfix")]
+        public string PostFix
+        {
+            get
+            {
+                return _postfix;
+            }
+            private set
+            {
+                _postfix = value.ToLower();
+            }
+        }
+
+        public void addPos(int pos)
+        {
+            _pos.Add(pos);
+        }
+
+        public void removePos(int pos)
+        {
+            _pos.Add(pos);
+        }
+
+        public DocumentReference(string docId, string postfix, HashSet<int> pos)
+        {
+            DocID = docId;
+            PostFix = postfix;
+            Pos = pos;
+        }
+        public DocumentReference(string doc_id, string postfix)
+            :this(doc_id, postfix, new HashSet<int>())
+        {
+
         }
     }
 }

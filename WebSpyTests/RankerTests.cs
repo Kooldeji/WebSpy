@@ -68,7 +68,13 @@ namespace WebSpy.Tests
         [TestMethod()]
         public void getRankTest2()
         {
-            var ranker = Ranker.init();
+
+            var query = new Dictionary<string, int>();
+            query["life"] = 1;
+            query["learning"] = 1;
+            var corpus = Corpus.init();
+            var ranker = new Ranker(corpus, query);
+
             List<KeyValuePair<String, double>> ranks = ranker.Rank();
             Console.WriteLine(ranks.Count);
             foreach (var item in ranks)

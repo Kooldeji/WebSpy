@@ -19,17 +19,19 @@ namespace WebSpy.Tests
         public void CorpusTest()
         {
             corpus = Corpus.init();
+            corpus.reset().Wait();
         }
 
         [TestMethod()]
-        public void GetTermFrequenciesTest()
+        public void GetTermDocumentsTest()
         {
             CorpusTest();
-            var res = corpus.GetTermFrequencies();
+            var res = corpus.GetTermDocuments();
             res.Wait();
+            Console.WriteLine(res.Result.Count());
             foreach (var i in res.Result)
             {
-                Console.WriteLine(i.Key);
+                Console.WriteLine(i.Term);
             }
         }
 
@@ -37,7 +39,7 @@ namespace WebSpy.Tests
         public void getDocumentsTest()
         {
             CorpusTest();
-            var res = corpus.getDocuments();
+            var res = corpus.GetDocuments();
             res.Wait();
             foreach (var i in res.Result)
             {
@@ -49,40 +51,46 @@ namespace WebSpy.Tests
         public void getDocumentsTest1()
         {
             CorpusTest();
-            var res = corpus.getDocuments("learning");
+            var res = corpus.GetDocuments("Learn");
             res.Wait();
             foreach (var i in res.Result)
             {
-                Console.WriteLine(i.Key + " " + i.Value);
+                Console.WriteLine(i.DocID);
             }
         }
 
         [TestMethod()]
-        public void getDocumentsTest2()
+        public void GetDocumentsTest3()
         {
             CorpusTest();
-            var res = corpus.getNoDocuments();
+            var res = corpus.GetDocuments(id=>id=="1");
             res.Wait();
             Console.WriteLine(res.Result);
-            Console.WriteLine(res);
         }
 
         [TestMethod()]
         public void getDocumentLengthTest()
         {
+            CorpusTest();
+            var res = corpus.GetDocumentLength("2");
+            res.Wait();
+            Console.WriteLine(res.Result);
         }
 
         [TestMethod()]
         public void getNoDocumentsTest()
         {
-            Assert.Fail();
+            CorpusTest();
+            var res = corpus.GetNoDocuments();
+            res.Wait();
+            Console.WriteLine(res.Result);
         }
 
         [TestMethod()]
         public void getTermsTest()
         {
             CorpusTest();
-            var res = corpus.getTerms();
+            var res = corpus.GetTerms();
             res.Wait();
             foreach (var i in res.Result)
             {
@@ -93,8 +101,8 @@ namespace WebSpy.Tests
         [TestMethod()]
         public void getTermsTest1()
         {
-            
-            var res = corpus.getTerms("598e28b96f42650033a71cba");
+
+            var res = corpus.GetTerms("1");
             res.Wait();
             foreach (var i in res.Result)
             {
@@ -106,7 +114,7 @@ namespace WebSpy.Tests
         public void getRepositoryTest()
         {
             CorpusTest();
-            var res6 = corpus.getRepository();
+            var res6 = corpus.GetRepository();
             res6.Wait();
             Console.WriteLine(res6.Result);
         }
@@ -115,29 +123,34 @@ namespace WebSpy.Tests
         public void getDocumentPathTest()
         {
             CorpusTest();
-            corpus.changeDocumentPath(testID, "1.txt").Wait();
+            var res6 = corpus.GetDocumentPath("1");
+            res6.Wait();
+            Console.WriteLine(res6.Result);
         }
 
         [TestMethod()]
         public void addDocumentTest()
         {
-            var res =  corpus.addDocument("5.txt");
+            CorpusTest();
+            var res = corpus.AddDocument("3.txt");
             res.Wait();
             Console.WriteLine(res.Result);
 
-            var a = new Dictionary<string, int>();
-            a["stop"] = 1;
-            a["learning"] = 2;
-            res = corpus.addDocument("4.txt", a);
+            var a = new TermDocument("stop");
+            a.addDoc(new DocumentReference("", "ped", new HashSet<int>(new int[] { 1 })));
+            var b = new TermDocument("Learn");
+            b.addDoc(new DocumentReference("", "ing", new HashSet<int>(new int[] { 2 })));
+            res = corpus.AddDocument("4.txt", 2, new List<ITermDocument>(new TermDocument[] {a,b }));
             res.Wait();
             Console.WriteLine(res.Result);
+            
         }
-        
+
         [TestMethod()]
         public void removeDocumentTest()
         {
             CorpusTest();
-            var res = corpus.removeDocument(testID);
+            var res = corpus.RemoveDocument("1");
             res.Wait();
             Console.WriteLine(res.Result);
         }
@@ -146,7 +159,7 @@ namespace WebSpy.Tests
         public void changePathTest()
         {
             CorpusTest();
-            var res = corpus.changeDocumentPath("598e28b96f42650033a71cba", "5.txt");
+            var res = corpus.ChangeDocumentPath("1", "5.txt");
             res.Wait();
             Console.WriteLine(res.Result);
         }
@@ -154,7 +167,8 @@ namespace WebSpy.Tests
         [TestMethod()]
         public void setRepoTest()
         {
-            var res = corpus.setRepository("C:/ Users / kooldeji / Documents / repo");
+            CorpusTest();
+            var res = corpus.SetRepository("C:/ Users / koldeji / Documents / repo");
             res.Wait();
         }
 
@@ -162,7 +176,7 @@ namespace WebSpy.Tests
         public void setLastCrawledTest()
         {
             CorpusTest();
-            var res = corpus.setLastCrawled(100);
+            var res = corpus.SetLastCrawled(900);
             res.Wait();
             Console.WriteLine(res.Result);
         }
@@ -171,7 +185,7 @@ namespace WebSpy.Tests
         public void getLastCrawledTest()
         {
             CorpusTest();
-            var res = corpus.getLastCrawled();
+            var res = corpus.GetLastCrawled();
             res.Wait();
             Console.WriteLine(res.Result);
         }
@@ -179,7 +193,8 @@ namespace WebSpy.Tests
         [TestMethod()]
         public void getDocumentIDTest()
         {
-            var res = corpus.getDocumentID("4.txt");
+            CorpusTest();
+            var res = corpus.GetDocumentID("1.txt");
             res.Wait();
             Console.WriteLine(res.Result);
         }
@@ -189,5 +204,6 @@ namespace WebSpy.Tests
         {
             Assert.Fail();
         }
+
     }
 }
