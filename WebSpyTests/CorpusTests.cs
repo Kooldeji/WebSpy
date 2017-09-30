@@ -19,7 +19,7 @@ namespace WebSpy.Tests
         public void CorpusTest()
         {
             corpus = Corpus.init();
-            corpus.reset().Wait();
+            corpus.Default().Wait();
         }
 
         [TestMethod()]

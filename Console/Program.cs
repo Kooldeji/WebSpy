@@ -13,38 +13,31 @@ namespace WebSpyConsole
     class Program
     {
         static Corpus _corpus;
+        static Querier _querier;
         static void Main(string[] args)
         {
-
             _corpus = Corpus.init();
-            _corpus.reset().Wait();
-            //Console.WriteLine(_corpus.GetTerms("1").Result.Count());
+            _corpus.Empty().Wait();
             var crawler = new Crawler(_corpus);
-            //Corpus.test();
+            _querier = new Querier(_corpus);
             while (true)
             {
                 var q = enterQuery();
                 Console.WriteLine("Entered: " + q);
-                var query = new Dictionary<string, int>();
-                var list = q.Trim().Split(' ');
-                var stemmer = new Stemmer();
-                foreach (var item in list)
+                _querier.Query(q);
+                Console.WriteLine("\nResults");
+                Console.WriteLine("Approx. "+_querier.duration+"ms");
+                foreach (var result in _querier.Results)
                 {
-                    var word = stemmer.StemWord(item.ToLower());
-                    try
-                    {
-                        query[word] += 1;
-                    }
-                    catch
-                    {
-                        query[word] = 1;
-                    }
+                    Console.WriteLine();
+                    Console.WriteLine("["+ result.Extension + "] - "+ result.Title+" - "+result.Size+ " bytes");
+                    Console.WriteLine("at .../"+result.RelativePath);
+                    Console.WriteLine(result.LastModified);
+                    Console.WriteLine(result.Value);
+                    Console.WriteLine();
                 }
-                var ranker = new Ranker(_corpus, query);
-                foreach (var item in ranker.Rank())
-                {
-                    Console.WriteLine(_corpus.GetDocumentPath(item.Key).Result + " -- " + item.Value);
-                }
+
+
             }
         }
         private static String enterQuery()

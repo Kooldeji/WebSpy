@@ -19,7 +19,7 @@ namespace WebSpy
         Task<HashSet<string>> GetDocuments();
 
         /// <summary>
-        /// Gets the documents that a term exists.
+        /// Gets the documents that a term exists in.
         /// </summary>
         /// <param name="term">The term.</param>
         /// <returns>A task of the document reference</returns>
