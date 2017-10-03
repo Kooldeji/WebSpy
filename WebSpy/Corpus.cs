@@ -39,7 +39,7 @@ namespace WebSpy
         public static void main(string[] args)
         {
             Corpus corpus = Corpus.init();
-            corpus.reset();
+            corpus.Default();
         }
 
         static Corpus()
@@ -357,7 +357,8 @@ namespace WebSpy
         {
             //Remove document from document table
             var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
-            var result = await _documentsTable.DeleteManyAsync(filter);
+            var result = await _documentsTable.DeleteOneAsync(filter);
+            if (!result.IsAcknowledged) return false;
 
             //Pull the document from all occurences in the inverted table 
             var pullUpdateFilter = Builders<TermDocument>.Update.PullFilter("docs", Builders<BsonDocument>.Filter.Eq("doc_id", id));
@@ -368,7 +369,7 @@ namespace WebSpy
             await _invertedTable.DeleteManyAsync(t => t.Docs.Count() < 1);
 
             //Decrement the number of documents
-            var update = Builders<BsonDocument>.Update.Inc("no_docs", -1);
+            var update = Builders<BsonDocument>.Update.Inc("no_docs", -(int)result.DeletedCount);
             await _root.UpdateOneAsync(FilterDefinition<BsonDocument>.Empty, update);
             
             return true;
@@ -445,7 +446,21 @@ namespace WebSpy
             var corpus = new Corpus(_client, _database);
             return corpus;
         }
-        public async Task reset()
+        public async Task Empty()
+        {
+            _database.DropCollection("Root");
+            _database.DropCollection("DocumentsTable");
+            _database.DropCollection("InvertedTable");
+            var doc = new BsonDocument
+            {
+                {"_id", "1"},
+                {"no_docs", 0},
+                {"repo", "C:/Users/kooldeji/Documents/repo" },
+                {"crawled", long.Parse("0") }
+            };
+            await _root.InsertOneAsync(doc);
+        }
+        public async Task Default()
         {
             _database.DropCollection("Root");
             _database.DropCollection("DocumentsTable");
@@ -462,12 +477,12 @@ namespace WebSpy
                 {"path", "2.txt" },
                 {"length",long.Parse("4") }
             };
-            //await _documentsTable.InsertOneAsync(doc);
-            //await _documentsTable.InsertOneAsync(doc1);
+            await _documentsTable.InsertOneAsync(doc);
+            await _documentsTable.InsertOneAsync(doc1);
             doc = new BsonDocument
             {
                 {"_id", "1"},
-                {"no_docs", 0},
+                {"no_docs", 2},
                 {"repo", "C:/Users/kooldeji/Documents/repo" },
                 {"crawled", long.Parse("0") }
             };
@@ -540,7 +555,7 @@ namespace WebSpy
                 }
                 docref.addPos(c);
             }
-            //await _invertedTable.InsertManyAsync(termdict.Values);
+            await _invertedTable.InsertManyAsync(termdict.Values);
 
         }
     }

@@ -90,11 +90,11 @@ namespace WebSpy
                 }
 
             });
-            watcher.Created += new FileSystemEventHandler(async (source, e) =>
+            watcher.Created += new FileSystemEventHandler((source, e) =>
             {
                 try
                 {
-                    await _corpus.AddDocument(e.FullPath);
+                    _corpus.AddDocument(e.FullPath);
                 }
                 catch (IOException)
                 {
@@ -245,19 +245,31 @@ namespace WebSpy
         public Tuple<int, List<ITermDocument>> simulateIndexer(String path)
         {
             var stemmer = new Stemmer();
+
+            var reader = new StreamReader(Path.Combine(_corpus.GetRepository().Result, path));
+            var list = new List<string>(Regex.Split(Regex.Replace(
+                                         reader.ReadToEnd(),
+                                        "[^a-zA-Z0-9']+",
+                                        " "
+                                        ).Trim(), "\\s+"));
+            reader.Close();
+
+            //Document Length
+            var length = list.Count;
+
+            //Adding Term's Path for indexing.
+            list.AddRange(Regex.Split(Regex.Replace(
+                                         path,
+                                        "[^a-zA-Z0-9']",
+                                        " "
+                                        ).Trim(), "\\s+"));
+
             var termDict = new Dictionary<string, ITermDocument>();
             var docDict = new Dictionary<string, IDocumentReference>();
-            var reader = new StreamReader(Path.Combine(_corpus.GetRepository().Result, path));
-            var list = Regex.Split(Regex.Replace(
-                                         reader.ReadToEnd(),
-                                        "[^\\w\\s]+",
-                                        ""
-                                        ).Trim(), "\\s+");
-            reader.Close();
-            for (int i=0; i<list.Length; i++)
+            for (int i=0; i<list.Count; i++)
             {
-                var word = list[i];
-                var rootWord = stemmer.StemWord(word.ToLower());
+                var word = list[i].ToLower();
+                var rootWord = stemmer.StemWord(word);
                 ITermDocument term;
                 if (termDict.Keys.Contains(rootWord)) term = termDict[rootWord];
                 else
@@ -278,7 +290,7 @@ namespace WebSpy
                 }
                 docref.addPos(i);
             }
-            return Tuple.Create(list.Length, termDict.Values.ToList());
+            return Tuple.Create(length, termDict.Values.ToList());
         }
     }
 

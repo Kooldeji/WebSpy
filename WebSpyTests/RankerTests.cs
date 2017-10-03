@@ -75,7 +75,7 @@ namespace WebSpy.Tests
             var corpus = Corpus.init();
             var ranker = new Ranker(corpus, query);
 
-            List<KeyValuePair<String, double>> ranks = ranker.Rank();
+            List<KeyValuePair<String, decimal>> ranks = ranker.RankList;
             Console.WriteLine(ranks.Count);
             foreach (var item in ranks)
             {
