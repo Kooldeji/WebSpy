@@ -15,7 +15,7 @@ namespace WebSpyConsole
         static Corpus _corpus;
         static void Main(string[] args)
         {
-
+            
             _corpus = Corpus.init();
             _corpus.reset().Wait();
             //Console.WriteLine(_corpus.GetTerms("1").Result.Count());

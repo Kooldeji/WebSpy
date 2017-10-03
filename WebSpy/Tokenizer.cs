@@ -3,8 +3,13 @@ using System.Collections.Generic;
 
 namespace WebSpy
 {
-    class Tokenizer
+  
+    public class Tokenizer
     {
+        /// <summary>
+        /// Generates the token.
+        /// </summary>
+        /// <param name="s">This is the string which is passed into the method.</param>
         public void generateToken(string s)
         {
             var newString = s.ToLower();  //Convert all characters i the string to lower case
