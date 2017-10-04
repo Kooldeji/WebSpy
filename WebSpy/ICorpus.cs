@@ -12,6 +12,23 @@ namespace WebSpy
         /// <returns>A Task of List of TermDocuments</returns>
         Task<List<ITermDocument>> GetTermDocuments();
 
+
+        /// <summary>
+        /// Asynchronously gets all the term documents that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <param name="no">The no of terms.</param>
+        /// <returns></returns>
+        Task<HashSet<ITermDocument>> GetTermDocuments(Func<ITermDocument, bool> predicate);
+
+        /// <summary>
+        /// Asynchronously gets a number of term documents that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <param name="no">The no of terms.</param>
+        /// <returns></returns>
+        Task<List<ITermDocument>> GetTermDocuments(Func<ITermDocument, bool> predicate, int no);
+
         /// <summary>
         /// Gets the documents.
         /// </summary>
@@ -70,6 +87,12 @@ namespace WebSpy
         /// <returns></returns>
         Task<List<String>> GetTerms(Func<String, bool> predicate, int no);
 
+        /// <summary>
+        /// Gets the terms that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <returns></returns>
+        Task<HashSet<String>> GetWords(Func<String, bool> predicate, int no);
         /// <summary>
         /// Gets the repository.
         /// </summary>

@@ -18,6 +18,7 @@ namespace WebSpy
         ICorpus _corpus;
         Timer timer;
         List<Tuple<CrawlerTask, String>> queue = new List<Tuple<CrawlerTask, String>>();
+        string itr;
         public Crawler(ICorpus corpus)
         {
             timer = new Timer(30000);
@@ -25,7 +26,8 @@ namespace WebSpy
             timer.Elapsed += execute;
 
             _corpus = corpus;
-            init().Wait();
+            init();
+            Console.WriteLine("init");
             //while (res.Status != TaskStatus.RanToCompletion) ;
 
 
@@ -35,39 +37,44 @@ namespace WebSpy
         {
             Console.WriteLine("Initializing...");
 
-            Console.WriteLine("Get Repo");
+            //Console.WriteLine("Get Repo");
             var repo = await _corpus.GetRepository();
-            Console.WriteLine("repo: "+repo);
+            Console.WriteLine(repo);
+            //Console.WriteLine("repo: "+repo);
             var files = crawl(repo).ToList();//All files in my repository
-            Console.WriteLine("Checking files");
+            //Console.WriteLine("Checking files");
             foreach (var file in files)
             {
                 Console.WriteLine(file);
-                var sfile = file.Replace(_corpus.GetRepository().Result + "\\", "");
+                Console.WriteLine(await _corpus.GetRepository());
+                var sfile = file.Replace(await _corpus.GetRepository() + "\\", "");
+                Console.WriteLine(await _corpus.GetRepository());
                 //For each file in the repository, try to get their id from the corpus
-                string id = _corpus.GetDocumentID(sfile).Result;
+                Console.WriteLine(sfile);
+                string id = await _corpus.GetDocumentID(sfile);
                 if (id == null)
                 {
                     //File is not in the Corpus
                     //Index it and add it to the corpus.
+                    Console.WriteLine("deji2" );
                     await addFile(file);
                 }
                 else
                 {
                     //File exists in the corpus
-                    if (File.GetLastWriteTime(file).Ticks > _corpus.GetLastCrawled().Result)
+                    if (File.GetLastWriteTime(file).Ticks > await _corpus.GetLastCrawled())
                     {
                         //File has been edited since last checked, re-index it and update it into the corpus
                         await editFile(file);
                     }
                 }
-                Console.WriteLine("done");
+                //Console.WriteLine("done");
             }
             var kFiles = await _corpus.GetDocuments(); //Files that exist in my database
             foreach (var id in kFiles)
             {
-                var file = _corpus.GetDocumentPath(id).Result;
-                if (!files.Contains(Path.Combine(_corpus.GetRepository().Result, file)))
+                var file = await _corpus.GetDocumentPath(id);
+                if (!files.Contains(Path.Combine(await _corpus.GetRepository(), file)))
                 {
                     //File does not exist again in repo, delete it from database
                     await removeFile(file);
@@ -75,7 +82,7 @@ namespace WebSpy
             }
 
             //------------Watching for changes--------------------
-            watcher = new FileSystemWatcher(_corpus.GetRepository().Result);
+            watcher = new FileSystemWatcher(await _corpus.GetRepository());
             watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Attributes;
             watcher.Changed += new FileSystemEventHandler((source, e) =>
             {
@@ -115,43 +122,45 @@ namespace WebSpy
         }
         private async Task renameFile(string file)
         {
-            Console.WriteLine("{0} was just renamed ", file);
-            file = file.Replace(_corpus.GetRepository().Result + "\\", "");
+            //Console.WriteLine("{0} was just renamed ", file);
+            file = file.Replace(await _corpus.GetRepository() + "\\", "");
             var id = await _corpus.GetDocumentID(file);
             await _corpus.ChangeDocumentPath(id, file);
             await _corpus.SetLastCrawled(DateTime.Now.Ticks);
-            Console.WriteLine("Renamed");
+            //Console.WriteLine("Renamed");
         }
         private async Task removeFile(string file)
         {
-            Console.WriteLine("{0} was just removed ", file);
-            file = file.Replace(_corpus.GetRepository().Result + "\\", "");
+            //Console.WriteLine("{0} was just removed ", file);
+            file = file.Replace(await _corpus.GetRepository() + "\\", "");
             var id = await _corpus.GetDocumentID(file);
             await _corpus.RemoveDocument(id);
             await _corpus.SetLastCrawled(DateTime.Now.Ticks);
-            Console.WriteLine("Removed");
+            //Console.WriteLine("Removed");
         }
 
         private async Task addFile(string file)
         {
-            Console.WriteLine("{0} was just Added ", file);
-            file = file.Replace(_corpus.GetRepository().Result + "\\", "");
-            var res = simulateIndexer(file);//new Indexer.index(file);
+            //Console.WriteLine("{0} was just Added ", file);
+            file = file.Replace(await _corpus.GetRepository() + "\\", "");
+            Console.WriteLine("ss:=L");
+            var res = await simulateIndexer(file);//new Indexer.index(file);
+            Console.WriteLine("ddd");
             await _corpus.AddDocument(file, res.Item1, res.Item2);
             await _corpus.SetLastCrawled(DateTime.Now.Ticks);
-            Console.WriteLine("Added");
+            //Console.WriteLine("Added");
         }
 
         public async Task editFile(String file)
         {
-            Console.WriteLine("{0} was just Modified ", file);
-            file = file.Replace(_corpus.GetRepository().Result + "\\", "");
-            var id = _corpus.GetDocumentID(file).Result;
-            var res = simulateIndexer(file);
+            //Console.WriteLine("{0} was just Modified ", file);
+            file = file.Replace(await _corpus.GetRepository() + "\\", "");
+            var id = await _corpus.GetDocumentID(file);
+            var res = await simulateIndexer(file);
             await _corpus.RemoveDocument(id);
             await _corpus.AddDocument(file, res.Item1, res.Item2);
             await _corpus.SetLastCrawled(DateTime.Now.Ticks);
-            Console.WriteLine("Edited");
+            //Console.WriteLine("Edited");
         }
 
         private void enQueue(CrawlerTask task, String file)
@@ -242,11 +251,12 @@ namespace WebSpy
             }
         }
 
-        public Tuple<int, List<ITermDocument>> simulateIndexer(String path)
+        public async Task<Tuple<long, List<ITermDocument>>> simulateIndexer(String path)
         {
             var stemmer = new Stemmer();
 
-            var reader = new StreamReader(Path.Combine(_corpus.GetRepository().Result, path));
+            Console.WriteLine("ree");
+            var reader = new StreamReader(Path.Combine(await _corpus.GetRepository(), path));
             var list = new List<string>(Regex.Split(Regex.Replace(
                                          reader.ReadToEnd(),
                                         "[^a-zA-Z0-9']+",
@@ -255,7 +265,7 @@ namespace WebSpy
             reader.Close();
 
             //Document Length
-            var length = list.Count;
+            long length = list.Count;
 
             //Adding Term's Path for indexing.
             list.AddRange(Regex.Split(Regex.Replace(
@@ -266,9 +276,10 @@ namespace WebSpy
 
             var termDict = new Dictionary<string, ITermDocument>();
             var docDict = new Dictionary<string, IDocumentReference>();
-            for (int i=0; i<list.Count; i++)
+            for (int i = 0; i < list.Count; i++)
             {
                 var word = list[i].ToLower();
+                itr = "" + i;
                 var rootWord = stemmer.StemWord(word);
                 ITermDocument term;
                 if (termDict.Keys.Contains(rootWord)) term = termDict[rootWord];

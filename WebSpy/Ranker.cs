@@ -21,11 +21,11 @@ namespace WebSpy
         /// An inverted index of query terms mapped to a mapping of each document to 
         /// the term's TF_IDF rank.
         /// </summary>
-        private Dictionary<String, Dictionary<String, decimal>> _documentRank;
+        private Dictionary<String, Dictionary<String, double>> _documentRank;
         /// <summary>
         /// The query document containing each term in the query mapped to it's TF_IDF rank.
         /// </summary>
-        private Dictionary<String, decimal> _queryRank;
+        private Dictionary<String, double> _queryRank;
         /// <summary>
         /// A list of the relevant documents in other of relevance
         /// </summary>
@@ -44,9 +44,9 @@ namespace WebSpy
         public Ranker(ICorpus corpus, Dictionary<String, int> query)
         {
             if (query == null || corpus == null) throw new ArgumentNullException();
-            this._queryRank = new Dictionary<string, decimal>();
+            this._queryRank = new Dictionary<string, double>();
             _corpus = corpus;
-            _documentRank = new Dictionary<string, Dictionary<string, decimal>>();
+            _documentRank = new Dictionary<string, Dictionary<string, double>>();
             _documents = new HashSet<string>();
             RankList = new List<KeyValuePair<String, decimal>>();
             CompTF_IDF(query);
@@ -106,9 +106,11 @@ namespace WebSpy
                     this._documents.Add(doc.DocID);
                 }
                 if (documents.Count < 1) continue;
-                var nDocuments = new Dictionary<String, decimal>();
-                decimal IDF = (decimal) (1 + Math.Log(1.0 *  noDocs / documents.Keys.Count));
-                this._queryRank[term.Key] = (decimal) (1.0 * term.Value / querySize) * IDF;
+                var nDocuments = new Dictionary<String, double>();
+                Console.WriteLine(1+Math.Log(1.0 * noDocs / documents.Keys.Count));
+                Console.WriteLine((decimal) Math.Log(1.0 * noDocs / documents.Keys.Count));
+                double IDF =  (1 +  Math.Log(1.0 *  noDocs / documents.Keys.Count));
+                this._queryRank[term.Key] =  (1.0 * term.Value / querySize) * IDF;
                 foreach (var item in documents)
                 {
                     long length;
@@ -119,8 +121,9 @@ namespace WebSpy
                         length = _corpus.GetDocumentLength(item.Key).Result;
                         cacheDocumentsLength[item.Key] = length;
                     }
-                    decimal tF = (decimal) 1.0 * item.Value /length;
-                    nDocuments[item.Key] = tF * IDF;
+                    if (length == 0) continue;
+                    double tF =  1.0 * item.Value /length;
+                    nDocuments[item.Key] =  tF * IDF;
                 }
                 _documentRank[term.Key] = nDocuments;
                 ;
@@ -130,22 +133,23 @@ namespace WebSpy
         //Computes the cosine similarity between the query and the document parameter
         private decimal CosineSimilarity(String id)
         {
-            decimal dotProduct = 0;
-            decimal queryMod = 0;
-            decimal documentMod = 0;
+            double dotProduct = 0;
+            double queryMod = 0;
+            double documentMod = 0;
             foreach (var term in _queryRank)
             {
-                queryMod += (decimal) Math.Pow((double) term.Value,2);
+                queryMod += Math.Pow( term.Value,2);
                 if (_documentRank[term.Key].ContainsKey(id))
                 {
-                    documentMod += (decimal)Math.Pow((double)_documentRank[term.Key][id], 2);
+                    documentMod += Math.Pow(_documentRank[term.Key][id], 2);
                     dotProduct += term.Value * _documentRank[term.Key][id];
                 }
             }
-            queryMod = (decimal) Math.Sqrt((double)queryMod);
-            documentMod = (decimal)Math.Sqrt((double)documentMod);
+            queryMod = Math.Sqrt(queryMod);
+            documentMod = Math.Sqrt(documentMod);
             //Console.WriteLine(dotProduct+" "+ documentMod+" "+ queryMod+" "+   (documentMod * queryMod));
-            return dotProduct / (documentMod * queryMod);
+            if (documentMod == 0) return 0;
+            return (decimal) dotProduct / ((decimal) documentMod * (decimal) queryMod);
 
         }
 
