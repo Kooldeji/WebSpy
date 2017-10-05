@@ -18,27 +18,31 @@ namespace WebSpyConsole
         {
             _corpus = Corpus.init();
             _corpus.Empty().Wait();
-            var crawler = new Crawler(_corpus);
-            _querier = new Querier(_corpus);
-            while (true)
-            {
-                var q = enterQuery();
-                Console.WriteLine("Entered: " + q);
-                _querier.Query(q);
-                Console.WriteLine("\nResults");
-                Console.WriteLine("Approx. "+_querier.duration+"ms");
-                foreach (var result in _querier.Results)
-                {
-                    Console.WriteLine();
-                    Console.WriteLine("["+ result.Extension + "] - "+ result.Title+" - "+result.Size+ " bytes");
-                    Console.WriteLine("at .../"+result.RelativePath);
-                    Console.WriteLine(result.LastModified);
-                    Console.WriteLine(result.Value);
-                    Console.WriteLine();
-                }
+            //var crawler = new Crawler(_corpus);
+            //_querier = new Querier(_corpus);
+            //while (true)
+            //{
+            //    var q = enterQuery();
+            //    Console.Clear();
+            //    Console.WriteLine("Entered: " + q);
+            //    _querier.Query(q);
+            //    Console.WriteLine("\nResults");
+            //    Console.WriteLine("Approx. "+_querier.duration+"ms");
+            //    foreach (var result in _querier.Results)
+            //    {
+            //        Console.WriteLine();
+            //        Console.WriteLine("["+ result.Extension + "] - "+ result.Title+" - "+result.Size+ " bytes");
+            //        Console.WriteLine("at .../"+result.RelativePath);
+            //        Console.WriteLine(result.LastModified);
+            //        Console.WriteLine(result.Value);
+            //        Console.WriteLine();
+            //    }
+            //    Console.Write("Enter a Key to Keep Searching..");
+            //    Console.ReadKey();
+            //    Console.Clear();
 
 
-            }
+            //}
         }
         private static String enterQuery()
         {
@@ -46,22 +50,26 @@ namespace WebSpyConsole
             const int max = 10;
             Console.Write("Enter Query: ");
             ConsoleKeyInfo q = Console.ReadKey(true);
+            Task predictTask = null;
             while (q.Key != ConsoleKey.Enter)
             {
-                if (q.Key == ConsoleKey.Backspace && ret.Count()>1)
+                Console.Clear();
+                if (q.Key == ConsoleKey.Backspace && ret.Count()>0)
                 {
-                    Console.WriteLine(ret.Count());
+                    //Console.WriteLine(ret.Count());
                     ret = ret.Substring(0, ret.Count() - 1);
                     var split = ret.Split(' ');
                     var text = split[split.Count() - 1];
-                    printPredict(text, max);
+                    if (predictTask != null && predictTask.Status == TaskStatus.Running) predictTask.Dispose();
+                    predictTask = printPredict(text, max);
                 }
                 else if (Char.IsLetterOrDigit(q.KeyChar) || Char.IsWhiteSpace(q.KeyChar))
                 {
                     ret += q.KeyChar;
                     var split = ret.Split(' ');
                     var text = split[split.Count() - 1];
-                    printPredict(text, max);
+                    if (predictTask != null && predictTask.Status == TaskStatus.Running) predictTask.Dispose();
+                    predictTask = printPredict(text, max);
                 }
                 
                 Console.WriteLine();
@@ -69,10 +77,11 @@ namespace WebSpyConsole
                 q = Console.ReadKey(true);
 
             }
+            if (predictTask != null && predictTask.Status == TaskStatus.Running) predictTask.Dispose();
             return ret;
         }
 
-        private static async void printPredict(string v, int max)
+        private static async Task printPredict(string v, int max)
         {
 
             var pattern = new Regex(v + ".*");

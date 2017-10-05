@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace WebSpy
@@ -73,9 +74,26 @@ namespace WebSpy
             return term;
         }
 
-        public async void AutoCompleteWord(string sentence, AsyncCallback callback)
+        public HashSet<string> AutoCompleteWord(string sentence, CancellationTokenSource cts)
         {
-            callback(null);
+            var set = new HashSet<string>();
+            var text = sentence.Split(' ').Last();
+            var rootText = new Stemmer().StemWord(text);
+            //var pattern = new Regex("("+text + ").*");
+            var terms =  _corpus.GetWords(term => {
+                //return pattern.IsMatch(term);
+                //Console.WriteLine(term);
+                if (term.Count() >= text.Count())
+                {
+                    if ( String.Compare(text, term.Substring(0, text.Count()), true) == 0)
+                    {
+                        if (cts.IsCancellationRequested) return false;
+                        return true;
+                    }
+                }
+                return false;
+            }, 10);
+            return terms.Result;
         }
 
     }

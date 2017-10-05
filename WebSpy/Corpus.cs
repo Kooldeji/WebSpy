@@ -63,6 +63,16 @@ namespace WebSpy
             }
             _client = client;
             _database = database;
+            try
+            {
+                database.CreateCollection("Root");
+                database.CreateCollection("InvertedTable");
+                database.CreateCollection("DocumentsTable");
+            }
+            catch
+            {
+
+            }
             _root = database.GetCollection<BsonDocument>("Root");
             _invertedTable = database.GetCollection<TermDocument>("InvertedTable");
             _documentsTable = database.GetCollection<BsonDocument>("DocumentsTable");
@@ -76,9 +86,53 @@ namespace WebSpy
         {
             List<ITermDocument> ret = new List<ITermDocument>();
             await (await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty)).ForEachAsync(t => ret.Add(t));
-            Console.WriteLine(1);
-            Console.WriteLine(ret.Count());
             return ret;
+        }
+
+        /// <summary>
+        /// Asynchronously gets all the term documents that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <param name="no">The no of terms.</param>
+        /// <returns></returns>
+        public async Task<HashSet<ITermDocument>> GetTermDocuments(Func<ITermDocument, bool> predicate)
+        {
+            var result = new HashSet<ITermDocument>();
+            using (var cursor = await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty))
+            {
+                while (await cursor.MoveNextAsync())
+                {
+                    IEnumerable<TermDocument> batch = cursor.Current;
+                    foreach (var termDoc in batch)
+                    {
+                        if (predicate(termDoc)) result.Add(termDoc);
+                    }
+                }
+            }
+            return result;
+        }
+        /// <summary>
+        /// Asynchronously gets a number of term documents that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <param name="no">The no of terms.</param>
+        /// <returns></returns>
+        public async Task<List<ITermDocument>> GetTermDocuments(Func<ITermDocument, bool> predicate, int no)
+        {
+            var result = new List<ITermDocument>();
+            using (var cursor = await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty))
+            {
+                while (await cursor.MoveNextAsync())
+                {
+                    IEnumerable<TermDocument> batch = cursor.Current;
+                    foreach (var termDoc in batch)
+                    {
+                        if (predicate(termDoc)) result.Add(termDoc);
+                        if (result.Count() == no) return result;
+                    }
+                }
+            }
+            return result;
         }
 
         /// <summary>
@@ -207,6 +261,32 @@ namespace WebSpy
             }
             return result;
         }
+
+        /// <summary>
+        /// Gets the terms that match a particular function.
+        /// </summary>
+        /// <param name="predicate">The predicate.</param>
+        /// <returns></returns>
+        public async Task<HashSet<String>> GetWords(Func<String, bool> predicate, int no)
+        {
+            var result = new HashSet<String>();
+            using (var cursor = await _invertedTable.FindAsync(FilterDefinition<TermDocument>.Empty))
+            {
+                while (await cursor.MoveNextAsync())
+                {
+                    IEnumerable<TermDocument> batch = cursor.Current;
+                    foreach (var termDoc in batch)
+                    {
+                        foreach (var docref in termDoc.Docs)
+                        {
+                            if (predicate(docref.PostFix)) result.Add(docref.PostFix);
+                            if (result.Count() == no) return result;
+                        }
+                    }
+                }
+            }
+            return result;
+        }
         /// <summary>
         /// Gets a number of terms that match a particular function.
         /// </summary>
@@ -261,7 +341,7 @@ namespace WebSpy
         /// <returns></returns>
         public async Task<bool> AddDocument(string path)
         {
-            await _documentsTable.InsertOneAsync(new BsonDocument { { "_id", ((await GetNoDocuments()) + 1).ToString() }, { "path", path }, { "length", 0 } });
+            await _documentsTable.InsertOneAsync(new BsonDocument { { "_id", ((await GetNoDocuments()) + 1).ToString() }, { "path", path }, { "length", 0L } });
             var update = Builders<BsonDocument>.Update.Inc("no_docs", 1);
             await _root.UpdateOneAsync(new BsonDocument(), update);
             return true;
@@ -292,6 +372,7 @@ namespace WebSpy
             
             foreach (var termDoc in index)
             {
+               //Console.WriteLine(termDoc.Term);
                 //var filter = Builders<BsonDocument>.Filter.Eq("_id", item.Key);
                 var termDoc2 = await _invertedTable.Find(t => t.Term==termDoc.Term).Project(t => t.Term).FirstOrDefaultAsync();
 
@@ -337,10 +418,8 @@ namespace WebSpy
                     }
                 }
             }
-            Console.WriteLine("l"+length);
             if (id != null)
             {
-                Console.WriteLine(length);
                 await _documentsTable.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", id), Builders<BsonDocument>.Update.Set("length", length));
             }
 

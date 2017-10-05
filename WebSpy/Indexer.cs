@@ -9,38 +9,43 @@ using TikaOnDotNet.TextExtraction;
 
 namespace WebSpy
 {
-    class Indexer
+    public class Indexer
     {
-        public void GenerateString(string path)
+        private Corpus _corpus;
+        HashSet<string> stopWords;
+        private Tokenizer _tokenizer;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Indexer"/> class.
+        /// </summary>
+        /// <param name="corpus">The corpus. Instantiates the corpus</param>
+        public Indexer (Corpus corpus, Tokenizer tokenizer)
         {
-            //use tika to extract data and store inside variable fileData
+            _corpus = corpus;
+            _tokenizer = tokenizer;
+            ////Load stop words into array
+            //var reader = new StreamReader("StopWords.txt");
+            //stopWords = new HashSet<string>();
+            //while (!reader.EndOfStream)
+            //{
+            //    stopWords.Add(reader.ReadLine());
+            //}
+        }
+        /// <summary>
+        /// Indexes the file passed to it
+        /// </summary>
+        /// <param name="path">The path of a file.</param>
+        /// <returns>Returns a list</returns>
+        public Tuple<int, List<ITermDocument>> Index(String path)
+                    
+        {
             var textExtractor = new TextExtractor();
 
-            var fileData = textExtractor.Extract(path);
-            string text = fileData.Text;
+            var fileData = textExtractor.Extract(Path.Combine(_corpus.GetRepository().Result, path)); //Extract the contents of the file in the specified file path
 
-            var regexItem = new Regex("[^a-zA-Z0-9_']+"); //create a regex object
-            if (regexItem.IsMatch(text[text.Length - 1].ToString()))
-            {
-                text = text.Remove(text.Length - 1);
-            }
+            var text = path + fileData.Text;
 
-            string editedText = Regex.Replace(text, "[^a-zA-Z0-9_']+", " "); //Replace characters with space
-            string[] words = editedText.Split(' '); //Add all words in the string to  array
-
-            var stemmer = new Stemmer(); //Create a stemmer object
-            var stemmedText = "";
-
-            for (int i = 0; i<words.Length; i++)
-            {
-                var stem = stemmer.StemWord(words[i]);
-                stemmedText += stem + " ";      //Append all stemmed words into a string that will be tokenized
-            }
-
-            var tok = new Tokenizer();  //Call the tokenizer class
-            tok.generateToken(stemmedText); //Pass the stemmed text to the method
+            return _tokenizer.Tokenize(text);  
         }
-
-
     }
 }
