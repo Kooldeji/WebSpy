@@ -63,9 +63,9 @@ namespace WebSpy.Tests
         public void GetDocumentsTest3()
         {
             CorpusTest();
-            var res = corpus.GetDocuments(id=>id=="1");
-            res.Wait();
-            Console.WriteLine(res.Result);
+            //var res = corpus.GetDocuments(id=>id=="1");
+            //res.Wait();
+            //Console.WriteLine(res.Result);
         }
 
         [TestMethod()]

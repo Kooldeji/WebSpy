@@ -17,32 +17,32 @@ namespace WebSpyConsole
         static void Main(string[] args)
         {
             _corpus = Corpus.init();
-            _corpus.Empty().Wait();
-            //var crawler = new Crawler(_corpus);
-            //_querier = new Querier(_corpus);
-            //while (true)
-            //{
-            //    var q = enterQuery();
-            //    Console.Clear();
-            //    Console.WriteLine("Entered: " + q);
-            //    _querier.Query(q);
-            //    Console.WriteLine("\nResults");
-            //    Console.WriteLine("Approx. "+_querier.duration+"ms");
-            //    foreach (var result in _querier.Results)
-            //    {
-            //        Console.WriteLine();
-            //        Console.WriteLine("["+ result.Extension + "] - "+ result.Title+" - "+result.Size+ " bytes");
-            //        Console.WriteLine("at .../"+result.RelativePath);
-            //        Console.WriteLine(result.LastModified);
-            //        Console.WriteLine(result.Value);
-            //        Console.WriteLine();
-            //    }
-            //    Console.Write("Enter a Key to Keep Searching..");
-            //    Console.ReadKey();
-            //    Console.Clear();
+            //_corpus.Empty().Wait();
+            var crawler = new Crawler(_corpus);
+            _querier = new Querier(_corpus);
+            while (true)
+            {
+                var q = enterQuery();
+                Console.Clear();
+                Console.WriteLine("Entered: " + q);
+                _querier.Query(q);
+                Console.WriteLine("\nResults");
+                Console.WriteLine("Approx. " + _querier.duration + "ms");
+                foreach (var result in _querier.Results)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("[" + result.Extension + "] - " + result.Title + " - " + result.Size + " bytes");
+                    Console.WriteLine("at .../" + result.RelativePath);
+                    Console.WriteLine(result.LastModified);
+                    Console.WriteLine(result.Value);
+                    Console.WriteLine();
+                }
+                Console.Write("Enter a Key to Keep Searching..");
+                Console.ReadKey();
+                Console.Clear();
 
 
-            //}
+            }
         }
         private static String enterQuery()
         {
@@ -56,7 +56,6 @@ namespace WebSpyConsole
                 Console.Clear();
                 if (q.Key == ConsoleKey.Backspace && ret.Count()>0)
                 {
-                    //Console.WriteLine(ret.Count());
                     ret = ret.Substring(0, ret.Count() - 1);
                     var split = ret.Split(' ');
                     var text = split[split.Count() - 1];

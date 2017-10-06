@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace WebSpy
 {
-  
+
     public class Tokenizer
     {
         private Stemmer _stemmer;
@@ -17,6 +17,13 @@ namespace WebSpy
             _stemmer = new Stemmer();  //Create an instance of the Stemmer class
 
         }
+        private string[] strip(string text)
+        {
+            return Regex.Split(Regex.Replace(text,
+                                      "[^a-zA-Z0-9']", //Use Regex expressions to include only a selected portion of the data
+                                      " "
+                                      ).Trim(), "\\s+");
+        }
         /// <summary>
         /// Generates the token.
         /// </summary>
@@ -25,23 +32,18 @@ namespace WebSpy
         {
             var termDict = new Dictionary<string, ITermDocument>();
             var docDict = new Dictionary<string, IDocumentReference>();
-            //Adding Term's Path for indexing.
-            var list = new List<string>(Regex.Split(Regex.Replace(
-                                         text,
-                                        "[^a-zA-Z0-9']", //Use Regex expressions to include only a selected portion of the data
-                                        " "
-                                        ).Trim(), "\\s+"));
+            var stripped_text = strip(text);
 
             //Document Length
-            var length = list.Count;
+            var length = stripped_text.Length;
 
 
-            for (int i = 0; i < list.Count; i++)  //Loop through the list
+            for (int i = 0; i < stripped_text.Length; i++)  //Loop through the list
             {
-                var word = list[i];
+                var word = stripped_text[i];
 
                 //Remove stopwords
-                if (_stopWords.Contains(list[i]))
+                if (_stopWords.Contains(stripped_text[i]))
                 {
                     length -= 1;
                     continue;

@@ -6,6 +6,8 @@ namespace WebSpy
 {
     public interface ICorpus
     {
+        HashSet<string> StopWords { get; }
+
         /// <summary>
         /// Asynchronously gets all the terms in from of TermDocuments.
         /// </summary>

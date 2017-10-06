@@ -69,19 +69,7 @@ namespace WebSpy.Tests
         public void getRankTest2()
         {
 
-            var query = new Dictionary<string, int>();
-            query["life"] = 1;
-            query["learning"] = 1;
-            var corpus = Corpus.init();
-            var ranker = new Ranker(corpus, query);
-
-            List<KeyValuePair<String, decimal>> ranks = ranker.RankList;
-            Console.WriteLine(ranks.Count);
-            foreach (var item in ranks)
-            {
-                Console.WriteLine(item);
-            }
-            Assert.AreEqual(1,1);
+           
         }
     }
 }

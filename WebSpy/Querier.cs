@@ -12,6 +12,9 @@ namespace WebSpy
 {
     public class Querier
     {
+        private Tokenizer _tokenizer;
+
+        private ICorpus _corpus;
         public string QueryString
         {
             get;
@@ -27,44 +30,26 @@ namespace WebSpy
             get;
         } = new List<DocumentResult>();
 
-        private ICorpus _corpus;
-
         public Querier(ICorpus corpus)
         {
             _corpus = corpus;
+            _tokenizer = new Tokenizer(corpus.StopWords);
         }
         public void Query(string query)
         {
             Results.Clear();
             Stopwatch watch = new Stopwatch();
             watch.Start();
-            var queryDict = new Dictionary<string, int>();
-            var stemmer = new Stemmer();
-            //Tokenizer's work 
-            var list = Regex.Split(Regex.Replace(
-                                         query,
-                                        "[^\\w\\s]+",
-                                        ""
-                                        ).Trim(), "\\s+");
-            for (int i = 0; i < list.Length; i++)
-            {
-                var word = stemmer.StemWord(list[i].ToLower());
-                if (queryDict.ContainsKey(word))
-                {
-                    queryDict[word] += 1;
-                }
-                else
-                {
-                    queryDict[word] = 1;
-                }
-            }
-            var ranker = new Ranker(_corpus, queryDict);
+            var queryDoc = _tokenizer.Tokenize(query);
+            Console.WriteLine(queryDoc);
+            var ranker = new Ranker(_corpus, queryDoc);
             var result = ranker.RankList;
             watch.Stop();
             duration = watch.ElapsedMilliseconds;
             watch.Reset();
             foreach (var item in result)
             {
+                Console.WriteLine(item);
                 Results.Add(new DocumentResult(_corpus.GetRepository().Result, _corpus.GetDocumentPath(item.Key).Result, item.Value));
             }
         }
@@ -80,12 +65,12 @@ namespace WebSpy
             var text = sentence.Split(' ').Last();
             var rootText = new Stemmer().StemWord(text);
             //var pattern = new Regex("("+text + ").*");
-            var terms =  _corpus.GetWords(term => {
+            var terms = _corpus.GetWords(term => {
                 //return pattern.IsMatch(term);
                 //Console.WriteLine(term);
                 if (term.Count() >= text.Count())
                 {
-                    if ( String.Compare(text, term.Substring(0, text.Count()), true) == 0)
+                    if (String.Compare(text, term.Substring(0, text.Count()), true) == 0)
                     {
                         if (cts.IsCancellationRequested) return false;
                         return true;
@@ -100,18 +85,19 @@ namespace WebSpy
 
     public class DocumentResult
     {
+        private string _subtext = "A search engine API with support for a generic repository as a project of csc322 of the University of Lagos, Nigeria.It is…….";
         public string Extension
         {
             get
             {
-                return Path.GetExtension(FullPath).Remove(0, 1);
+                return Path.GetExtension(FullPath);
             }
         }
         public string Title
         {
             get
             {
-                return Path.GetFileName(FullPath).Replace("."+Extension, "");
+                return new FileInfo(FullPath).Name;
             }
         }
         public long Size
@@ -130,8 +116,14 @@ namespace WebSpy
         }
         public string SubText
         {
-            get;
-            private set;
+            get
+            {
+                return _subtext;
+            }
+            private set
+            {
+                _subtext = value;
+            }
         }
         public string FullPath
         {
@@ -143,18 +135,24 @@ namespace WebSpy
             get;
             private set;
         }
-        public decimal Value
+        public double Value
         {
             get;
             private set;
         }
-        public DocumentResult(string repo, string file, decimal value)
+        public string Author
+        {
+            get
+            {
+                return File.GetAccessControl(FullPath).GetOwner(typeof(System.Security.Principal.NTAccount)).ToString();
+            }
+        }
+        public DocumentResult(string repo, string file, double value)
         {
             FullPath = Path.Combine(repo, file);
             RelativePath = file;
             Value = value;
 
-            
         }
     }
 }

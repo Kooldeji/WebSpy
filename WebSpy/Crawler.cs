@@ -18,7 +18,7 @@ namespace WebSpy
         ICorpus _corpus;
         Timer timer;
         List<Tuple<CrawlerTask, String>> queue = new List<Tuple<CrawlerTask, String>>();
-        string itr;
+        Indexer _indexer;
         public Crawler(ICorpus corpus)
         {
             timer = new Timer(30000);
@@ -27,7 +27,6 @@ namespace WebSpy
 
             _corpus = corpus;
             init();
-            Console.WriteLine("init");
             //while (res.Status != TaskStatus.RanToCompletion) ;
 
 
@@ -36,16 +35,14 @@ namespace WebSpy
         public async Task init()
         {
             Console.WriteLine("Initializing...");
-
-            //Console.WriteLine("Get Repo");
+            _indexer = new Indexer(_corpus);
             var repo = await _corpus.GetRepository();
             Console.WriteLine(repo);
-            //Console.WriteLine("repo: "+repo);
             var files = crawl(repo).ToList();//All files in my repository
-            //Console.WriteLine("Checking files");
             foreach (var file in files)
             {
                 Console.WriteLine(file);
+                if (!isValidFile(file)) continue;
                 Console.WriteLine(await _corpus.GetRepository());
                 var sfile = file.Replace(await _corpus.GetRepository() + "\\", "");
                 Console.WriteLine(await _corpus.GetRepository());
@@ -56,7 +53,7 @@ namespace WebSpy
                 {
                     //File is not in the Corpus
                     //Index it and add it to the corpus.
-                    Console.WriteLine("deji2" );
+                    Console.WriteLine("deji2");
                     await addFile(file);
                 }
                 else
@@ -83,42 +80,34 @@ namespace WebSpy
 
             //------------Watching for changes--------------------
             watcher = new FileSystemWatcher(await _corpus.GetRepository());
+            Console.WriteLine("watch");
             watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Attributes;
-            watcher.Changed += new FileSystemEventHandler((source, e) =>
+            watcher.Changed += new FileSystemEventHandler(async (source, e) =>
             {
-                try
-                {
-                    editFile(e.FullPath);
-                }
-                catch (IOException)
-                {
-                    Console.WriteLine("Exception, enqued");
-                    enQueue(editFile, e.FullPath);
-                }
+                Console.WriteLine("changed");
+                if (!isValidFile(e.FullPath)) return;
+                await editFile(e.FullPath);
 
             });
-            watcher.Created += new FileSystemEventHandler((source, e) =>
+            watcher.Created += new FileSystemEventHandler(async (source, e) =>
             {
-                try
-                {
-                    _corpus.AddDocument(e.FullPath);
-                }
-                catch (IOException)
-                {
-                    Console.WriteLine("Exception, enqued");
-                    enQueue(addFile, e.FullPath);
-                }
+                Console.WriteLine("created");
+                if (!isValidFile(e.FullPath)) return;
+                await addFile(e.FullPath);
             });
-            watcher.Deleted += new FileSystemEventHandler((source, e) =>
+            watcher.Deleted += new FileSystemEventHandler(async (source, e) =>
             {
-                removeFile(e.FullPath);
+                Console.WriteLine("remove");
+                await removeFile(e.FullPath);
             });
-            watcher.Renamed += new RenamedEventHandler((source, e) =>
+            watcher.Renamed += new RenamedEventHandler(async (source, e) =>
             {
-                renameFile(e.FullPath);
+                if (!isValidFile(e.FullPath)) return;
+                await renameFile(e.FullPath);
             });
 
             watcher.EnableRaisingEvents = true;
+            Console.WriteLine("watcher: " + watcher.Path);
         }
         private async Task renameFile(string file)
         {
@@ -132,9 +121,11 @@ namespace WebSpy
         private async Task removeFile(string file)
         {
             //Console.WriteLine("{0} was just removed ", file);
+            Console.WriteLine("remove met");
             file = file.Replace(await _corpus.GetRepository() + "\\", "");
             var id = await _corpus.GetDocumentID(file);
             await _corpus.RemoveDocument(id);
+            Console.WriteLine("removed");
             await _corpus.SetLastCrawled(DateTime.Now.Ticks);
             //Console.WriteLine("Removed");
         }
@@ -144,7 +135,7 @@ namespace WebSpy
             //Console.WriteLine("{0} was just Added ", file);
             file = file.Replace(await _corpus.GetRepository() + "\\", "");
             Console.WriteLine("ss:=L");
-            var res = await simulateIndexer(file);//new Indexer.index(file);
+            var res = _indexer.Index(file);//new Indexer.index(file);
             Console.WriteLine("ddd");
             await _corpus.AddDocument(file, res.Item1, res.Item2);
             await _corpus.SetLastCrawled(DateTime.Now.Ticks);
@@ -155,8 +146,10 @@ namespace WebSpy
         {
             //Console.WriteLine("{0} was just Modified ", file);
             file = file.Replace(await _corpus.GetRepository() + "\\", "");
+            Console.WriteLine("add " + file);
             var id = await _corpus.GetDocumentID(file);
-            var res = await simulateIndexer(file);
+            Console.WriteLine("add " + id);
+            var res = _indexer.Index(file);
             await _corpus.RemoveDocument(id);
             await _corpus.AddDocument(file, res.Item1, res.Item2);
             await _corpus.SetLastCrawled(DateTime.Now.Ticks);
@@ -224,7 +217,7 @@ namespace WebSpy
         {
             foreach (var tuple in queue.ToArray())
             {
-                if (String.Compare(tuple.Item2, oldName, true)==0)
+                if (String.Compare(tuple.Item2, oldName, true) == 0)
                 {
                     queue.Remove(tuple);
                     if (!execute(tuple.Item1, newName))
@@ -235,7 +228,7 @@ namespace WebSpy
                 }
             }
         }
-        
+
         public static IEnumerable<string> crawl(String path)
         {
             foreach (var file in Directory.EnumerateFiles(path))
@@ -279,7 +272,6 @@ namespace WebSpy
             for (int i = 0; i < list.Count; i++)
             {
                 var word = list[i].ToLower();
-                itr = "" + i;
                 var rootWord = stemmer.StemWord(word);
                 ITermDocument term;
                 if (termDict.Keys.Contains(rootWord)) term = termDict[rootWord];
@@ -302,6 +294,15 @@ namespace WebSpy
                 docref.addPos(i);
             }
             return Tuple.Create(length, termDict.Values.ToList());
+        }
+
+        public bool isValidFile(string path)
+        {
+            Console.WriteLine(Path.GetExtension(path));
+            var validTypes = new HashSet<string>(new string[] { "pdf", "doc", "docx", "ppt", "ppts", "xls", "xlsx", "txt", "html", "xml" });
+            if (!File.Exists(path)) return false;
+            if (!validTypes.Contains(Path.GetExtension(path).Remove(0, 1))) return false;
+            return true;
         }
     }
 

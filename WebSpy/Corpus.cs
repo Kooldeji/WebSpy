@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using MongoDB.Bson.Serialization.Attributes;
 using System.Linq.Expressions;
 using MongoDB.Bson.Serialization;
+using System.IO;
 
 namespace WebSpy
 {
@@ -35,6 +36,17 @@ namespace WebSpy
         /// A collection that encapsulates the documents in the corpus and their attributes like path and length.
         /// </summary>
         private IMongoCollection<BsonDocument> _documentsTable;
+        /// <summary>
+        /// The set of stop words
+        /// </summary>
+        private HashSet<string> _stopWords;
+
+        public HashSet<string> StopWords {
+            get
+            {
+                return _stopWords;
+            }
+        }
 
         public static void main(string[] args)
         {
@@ -63,19 +75,41 @@ namespace WebSpy
             }
             _client = client;
             _database = database;
+            BsonDocument doc = null;
             try
             {
                 database.CreateCollection("Root");
+                doc = new BsonDocument
+                {
+                    {"_id", "1"},
+                    {"no_docs", 0},
+                    {"repo", "C:/Users/kooldeji/Documents/repo" },
+                    {"crawled", 0L }
+                };
+            }
+            catch { }
+            try
+            {
                 database.CreateCollection("InvertedTable");
+            }
+            catch { }
+            try
+            {
                 database.CreateCollection("DocumentsTable");
             }
-            catch
-            {
-
-            }
+            catch { }
             _root = database.GetCollection<BsonDocument>("Root");
+            if (doc != null) _root.InsertOne(doc);
             _invertedTable = database.GetCollection<TermDocument>("InvertedTable");
             _documentsTable = database.GetCollection<BsonDocument>("DocumentsTable");
+
+            //Load stop words into HashSet
+            var reader = new StreamReader("StopWords.txt");
+            _stopWords = new HashSet<string>();
+            while (!reader.EndOfStream)
+            {
+                _stopWords.Add(reader.ReadLine());
+            }
 
         }
         /// <summary>
@@ -149,7 +183,7 @@ namespace WebSpy
                     IEnumerable<BsonDocument> batch = cursor.Current;
                     foreach (BsonDocument document in batch)
                     {
-                        result.Add(document["_id"].AsString);
+                        result.Add(document["_id"].AsObjectId.ToString());
                     }
                 }
             }
@@ -186,7 +220,7 @@ namespace WebSpy
                     IEnumerable<BsonDocument> batch = cursor.Current;
                     foreach (BsonDocument document in batch)
                     {
-                        var doc = document["_id"].AsString;
+                        var doc = document["_id"].AsObjectId.ToString();
                         if (predicate(doc)) result.Add(doc);
                     }
                 }
@@ -201,7 +235,7 @@ namespace WebSpy
         /// <returns></returns>
         public async Task<long> GetDocumentLength(string id)
         {
-            BsonDocument ret = await _documentsTable.Find(Builders<BsonDocument>.Filter.Eq("_id", id)).FirstOrDefaultAsync();
+            BsonDocument ret = await _documentsTable.Find(Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id))).FirstOrDefaultAsync();
             if (ret == null) return 0;
             return ret["length"].AsInt64;
         }
@@ -237,7 +271,7 @@ namespace WebSpy
         public async Task<HashSet<string>> GetTerms(String id)
         {           
             var docs = new HashSet<String>();
-            await (await _invertedTable.FindAsync(Builders<TermDocument>.Filter.Eq("docs.doc_id", id))).ForEachAsync(t => docs.Add(t.Term));
+            await (await _invertedTable.FindAsync(Builders<TermDocument>.Filter.Eq("docs.doc_id", new ObjectId(id)))).ForEachAsync(t => docs.Add(t.Term));
             return docs;
         }
         /// <summary>
@@ -329,7 +363,7 @@ namespace WebSpy
         /// <returns></returns>
         public async Task<string> GetDocumentPath(String id)
         {
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
             BsonDocument ret = await _documentsTable.Find(filter).Project("{ path: 1 }").FirstOrDefaultAsync();
             return ret["path"].AsString;
         }
@@ -341,7 +375,7 @@ namespace WebSpy
         /// <returns></returns>
         public async Task<bool> AddDocument(string path)
         {
-            await _documentsTable.InsertOneAsync(new BsonDocument { { "_id", ((await GetNoDocuments()) + 1).ToString() }, { "path", path }, { "length", 0L } });
+            await _documentsTable.InsertOneAsync(new BsonDocument { { "path", path }, { "length", 0L } });
             var update = Builders<BsonDocument>.Update.Inc("no_docs", 1);
             await _root.UpdateOneAsync(new BsonDocument(), update);
             return true;
@@ -393,7 +427,7 @@ namespace WebSpy
                     {
                         var postfix = doc.PostFix;
                         //Expression<Func<TermDocument, bool>> find = (t => t.Term == termDoc.Term && t.Docs.Any(d => d.DocID == id && d.PostFix == postfix));
-                        var docFilter = Builders<TermDocument>.Filter.Eq("_id", termDoc.Term) & Builders<TermDocument>.Filter.Eq("docs.doc_id", id) & Builders<TermDocument>.Filter.Eq("docs.postfix", postfix); ;
+                        var docFilter = Builders<TermDocument>.Filter.Eq("_id", termDoc.Term) & Builders<TermDocument>.Filter.Eq("docs.doc_id", new ObjectId(id)) & Builders<TermDocument>.Filter.Eq("docs.postfix", postfix); ;
                         termDoc2 = await _invertedTable.Find(docFilter).Project(t => t.Term).FirstOrDefaultAsync();
                         if (termDoc2 == null)
                         {
@@ -420,7 +454,7 @@ namespace WebSpy
             }
             if (id != null)
             {
-                await _documentsTable.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", id), Builders<BsonDocument>.Update.Set("length", length));
+                await _documentsTable.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id)), Builders<BsonDocument>.Update.Set("length", length));
             }
 
             return true;
@@ -435,19 +469,20 @@ namespace WebSpy
         public async Task<bool> RemoveDocument(string id)
         {
             //Remove document from document table
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
             var result = await _documentsTable.DeleteOneAsync(filter);
             if (!result.IsAcknowledged) return false;
 
             //Pull the document from all occurences in the inverted table 
-            var pullUpdateFilter = Builders<TermDocument>.Update.PullFilter("docs", Builders<BsonDocument>.Filter.Eq("doc_id", id));
-            await _invertedTable.UpdateManyAsync(Builders<TermDocument>.Filter.Eq("docs.doc_id", id), pullUpdateFilter);
+            var pullUpdateFilter = Builders<TermDocument>.Update.PullFilter("docs", Builders<BsonDocument>.Filter.Eq("doc_id", new ObjectId(id)));
+            await _invertedTable.UpdateManyAsync(Builders<TermDocument>.Filter.Eq("docs.doc_id", new ObjectId(id)), pullUpdateFilter);
 
             //Clear terms with empty documents from database
             var clearFilter = Builders<BsonDocument>.Filter.SizeLte("docs", 0);
             await _invertedTable.DeleteManyAsync(t => t.Docs.Count() < 1);
 
             //Decrement the number of documents
+            Console.WriteLine(-(int)result.DeletedCount);
             var update = Builders<BsonDocument>.Update.Inc("no_docs", -(int)result.DeletedCount);
             await _root.UpdateOneAsync(FilterDefinition<BsonDocument>.Empty, update);
             
@@ -462,7 +497,7 @@ namespace WebSpy
         /// <returns></returns>
         public async Task<bool> ChangeDocumentPath(string id, string newPath)
         {
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
+            var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
             var update = Builders<BsonDocument>.Update.Set("path", newPath);
             await _documentsTable.UpdateOneAsync(filter, update);
             return true;
@@ -546,13 +581,13 @@ namespace WebSpy
             _database.DropCollection("InvertedTable");
             var doc = new BsonDocument
             {
-                {"_id", "1" },
+                {"_id", new ObjectId("1") },
                 {"path", "1.txt" },
                 {"length", long.Parse("6") }
             };
             var doc1 = new BsonDocument
             {
-                {"_id", "2" },
+                {"_id", new ObjectId("2") },
                 {"path", "2.txt" },
                 {"length",long.Parse("4") }
             };
@@ -628,7 +663,7 @@ namespace WebSpy
                 }
                 else
                 {
-                    docref = new DocumentReference(id, item.Value);
+                    docref = new DocumentReference("", item.Value);
                     docdict.Add(item.Key + item.Value, docref);
                     term.addDoc(docref);
                 }
@@ -696,11 +731,19 @@ namespace WebSpy
     {
         private HashSet<int> _pos;
         private string _postfix;
+        private string _docId;
 
         [BsonElement("doc_id")]
-        public string DocID
+        public ObjectId DocID
         {
-            get; set;
+            get
+            {
+                return new ObjectId(_docId);
+            }
+            set
+            {
+                _docId = value.ToString();
+            }
         }
 
         [BsonElement("pos")]
@@ -728,6 +771,18 @@ namespace WebSpy
             }
         }
 
+        string IDocumentReference.DocID
+        {
+            get
+            {
+                return _docId;
+            }
+            set
+            {
+                _docId = value;
+            }
+        }
+
         public void addPos(int pos)
         {
             _pos.Add(pos);
@@ -740,7 +795,7 @@ namespace WebSpy
 
         public DocumentReference(string docId, string postfix, HashSet<int> pos)
         {
-            DocID = docId;
+            _docId = docId;
             PostFix = postfix;
             Pos = pos;
         }

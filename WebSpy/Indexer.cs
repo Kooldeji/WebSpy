@@ -11,25 +11,20 @@ namespace WebSpy
 {
     public class Indexer
     {
-        private Corpus _corpus;
+        private ICorpus _corpus;
         HashSet<string> stopWords;
         private Tokenizer _tokenizer;
+        private readonly string _repo;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Indexer"/> class.
         /// </summary>
         /// <param name="corpus">The corpus. Instantiates the corpus</param>
-        public Indexer (Corpus corpus, Tokenizer tokenizer)
+        public Indexer (ICorpus corpus)
         {
             _corpus = corpus;
-            _tokenizer = tokenizer;
-            ////Load stop words into array
-            //var reader = new StreamReader("StopWords.txt");
-            //stopWords = new HashSet<string>();
-            //while (!reader.EndOfStream)
-            //{
-            //    stopWords.Add(reader.ReadLine());
-            //}
+            _tokenizer = new Tokenizer(corpus.StopWords);
+            _repo = _corpus.GetRepository().Result;
         }
         /// <summary>
         /// Indexes the file passed to it
@@ -40,11 +35,14 @@ namespace WebSpy
                     
         {
             var textExtractor = new TextExtractor();
+            
+            //Extract the contents of the file in the specified file path
+            var fileData = textExtractor.Extract(Path.Combine(_repo, path)); 
 
-            var fileData = textExtractor.Extract(Path.Combine(_corpus.GetRepository().Result, path)); //Extract the contents of the file in the specified file path
-
+            //Adding Term's Path for indexing.
             var text = path + fileData.Text;
 
+            //Return Tokenized form of text
             return _tokenizer.Tokenize(text);  
         }
     }

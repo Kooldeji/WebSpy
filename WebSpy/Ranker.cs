@@ -32,7 +32,7 @@ namespace WebSpy
         /// <value>
         /// A List of KeyValuePairs of string and double
         /// </value>
-        public List<KeyValuePair<String, decimal>> RankList
+        public List<KeyValuePair<String, double>> RankList
         {
             get;
             private set;
@@ -41,17 +41,17 @@ namespace WebSpy
         /// Initializes a new instance of the <see cref="Ranker"/> class.
         /// </summary>
         /// <param name="query">A mapping of each query term to the frequency in the query document.</param>
-        public Ranker(ICorpus corpus, Dictionary<String, int> query)
+        public Ranker(ICorpus corpus, Tuple<int, List<ITermDocument>> query)
         {
             if (query == null || corpus == null) throw new ArgumentNullException();
             this._queryRank = new Dictionary<string, double>();
             _corpus = corpus;
             _documentRank = new Dictionary<string, Dictionary<string, double>>();
             _documents = new HashSet<string>();
-            RankList = new List<KeyValuePair<String, decimal>>();
+            RankList = new List<KeyValuePair<String, double>>();
             CompTF_IDF(query);
             Rank();
-            
+
         }
 
         /// <summary>
@@ -67,21 +67,21 @@ namespace WebSpy
             {
                 var inserted = false;
                 var value = CosineSimilarity(id);
-                for (int i=0; i<RankList.Count; i++)
+                for (int i = 0; i < RankList.Count; i++)
                 {
                     if (value >= RankList[i].Value)
                     {
-                        RankList.Insert(i, new KeyValuePair<string, decimal>(id, value));
+                        RankList.Insert(i, new KeyValuePair<string, double>(id, value));
                         inserted = true;
                         break;
                     }
                 }
-                if (!inserted) RankList.Add(new KeyValuePair<string, decimal>(id, value));
+                if (!inserted) RankList.Add(new KeyValuePair<string, double>(id, value));
             }
         }
         //Computes the TF-IDF rank of both the query and the documents relevant 
         //to the document
-        private void CompTF_IDF(Dictionary<string, int> query)
+        private void CompTF_IDF(Tuple<int, List<ITermDocument>> query)
         {
             //A cache of Length of each documents needed for ranking.
             IDictionary<String, long> cacheDocumentsLength = new Dictionary<String, long>();
@@ -90,16 +90,12 @@ namespace WebSpy
             long noDocs = _corpus.GetNoDocuments().Result;
 
             //Compute the size of the query to compute each query's IDF
-            var querySize = 0;
-            foreach (var term in query)
-            {
-                querySize += term.Value;
-            }
+            var querySize = query.Item1;
 
-            foreach (var term in query)
+            foreach (var term in query.Item2)
             {
                 IDictionary<String, int> documents = new Dictionary<String, int>();
-                foreach (var doc in _corpus.GetDocuments(term.Key).Result)
+                foreach (var doc in _corpus.GetDocuments(term.Term).Result)
                 {
                     if (documents.Keys.Contains(doc.DocID)) continue;
                     documents.Add(doc.DocID, doc.Pos.Count);
@@ -107,10 +103,8 @@ namespace WebSpy
                 }
                 if (documents.Count < 1) continue;
                 var nDocuments = new Dictionary<String, double>();
-                Console.WriteLine(1+Math.Log(1.0 * noDocs / documents.Keys.Count));
-                Console.WriteLine((decimal) Math.Log(1.0 * noDocs / documents.Keys.Count));
-                double IDF =  (1 +  Math.Log(1.0 *  noDocs / documents.Keys.Count));
-                this._queryRank[term.Key] =  (1.0 * term.Value / querySize) * IDF;
+                double IDF = (1 + Math.Log(1.0 * noDocs / documents.Keys.Count));
+                this._queryRank[term.Term] = (1.0 * term.Docs.First().Pos.Count / querySize) * IDF;
                 foreach (var item in documents)
                 {
                     long length;
@@ -122,23 +116,23 @@ namespace WebSpy
                         cacheDocumentsLength[item.Key] = length;
                     }
                     if (length == 0) continue;
-                    double tF =  1.0 * item.Value /length;
-                    nDocuments[item.Key] =  tF * IDF;
+                    double tF = 1.0 * item.Value / length;
+                    nDocuments[item.Key] = tF * IDF;
                 }
-                _documentRank[term.Key] = nDocuments;
+                _documentRank[term.Term] = nDocuments;
                 ;
             }
         }
 
         //Computes the cosine similarity between the query and the document parameter
-        private decimal CosineSimilarity(String id)
+        private double CosineSimilarity(String id)
         {
             double dotProduct = 0;
             double queryMod = 0;
             double documentMod = 0;
             foreach (var term in _queryRank)
             {
-                queryMod += Math.Pow( term.Value,2);
+                queryMod += Math.Pow(term.Value, 2);
                 if (_documentRank[term.Key].ContainsKey(id))
                 {
                     documentMod += Math.Pow(_documentRank[term.Key][id], 2);
@@ -147,9 +141,8 @@ namespace WebSpy
             }
             queryMod = Math.Sqrt(queryMod);
             documentMod = Math.Sqrt(documentMod);
-            //Console.WriteLine(dotProduct+" "+ documentMod+" "+ queryMod+" "+   (documentMod * queryMod));
             if (documentMod == 0) return 0;
-            return (decimal) dotProduct / ((decimal) documentMod * (decimal) queryMod);
+            return dotProduct / (documentMod * queryMod);
 
         }
 
@@ -170,6 +163,6 @@ namespace WebSpy
             }
             return retDict;
         }
-        
+
     }
 }
